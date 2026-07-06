@@ -1,0 +1,7 @@
+{
+  "name": "@porishrom/shared-types",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared Zod schemas / DTOs for API contracts between backend, frontend, and admin.",
+  "main": "./src/index.ts"
+}

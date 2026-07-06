@@ -1,0 +1,32 @@
+// Canonical Prisma schema for Porishrom.
+// Owned exclusively by @porishrom/backend — no other app should import this client directly.
+//
+// Dev: local Postgres via Docker Compose (DATABASE_URL points at localhost).
+// Prod: same Postgres, running on the VPS (DATABASE_URL swapped, `prisma migrate deploy`).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  freelancer
+  client
+}
+
+model User {
+  id                  String   @id @default(cuid())
+  name                String
+  email               String   @unique
+  passwordHash        String
+  role                Role?
+  isOnboarded         Boolean  @default(false)
+  profileCompleteness Int      @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}

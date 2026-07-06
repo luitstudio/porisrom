@@ -1,0 +1,7 @@
+{
+  "name": "@porishrom/admin",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Admin panel for Porishrom — consumes the backend API only.",
+  "scripts": {}
+}
