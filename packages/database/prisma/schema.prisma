@@ -5,28 +5,159 @@
 // Prod: same Postgres, running on the VPS (DATABASE_URL swapped, `prisma migrate deploy`).
 
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 enum Role {
   freelancer
   client
+  admin
+}
+
+enum AccountStatus {
+  active
+  blocked
+  deleted
 }
 
 model User {
-  id                  String   @id @default(cuid())
+  id                  String        @id @default(cuid())
   name                String
-  email               String   @unique
+  email               String        @unique
   passwordHash        String
   role                Role?
-  isOnboarded         Boolean  @default(false)
-  profileCompleteness Int      @default(0)
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  status              AccountStatus @default(active)
+  isOnboarded         Boolean       @default(false)
+  profileCompleteness Int           @default(0)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  freelancerProfile FreelancerProfile?
+  companyProfile    CompanyProfile?
+}
+
+enum VerificationStatus {
+  pending
+  approved
+  rejected
+}
+
+model FreelancerProfile {
+  id                 String             @id @default(cuid())
+  userId             String             @unique
+  user               User               @relation(fields: [userId], references: [id])
+  bio                String?
+  address            String?
+  state              String?
+  district           String?
+  languages          String[]           @default([])
+  experienceLevel    String?
+  verificationStatus VerificationStatus @default(pending)
+  isBadgeVerified    Boolean            @default(false)
+  ratingAvg          Float              @default(0)
+  ratingCount        Int                @default(0)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  categories     FreelancerCategory[]
+  skills         FreelancerSkill[]
+  portfolioItems PortfolioItem[]
+}
+
+model CompanyProfile {
+  id                 String             @id @default(cuid())
+  userId             String             @unique
+  user               User               @relation(fields: [userId], references: [id])
+  companyName        String
+  logoUrl            String?
+  about              String?
+  address            String?
+  state              String?
+  verificationStatus VerificationStatus @default(pending)
+  isBadgeVerified    Boolean            @default(false)
+  ratingAvg          Float              @default(0)
+  ratingCount        Int                @default(0)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  categories CompanyCategory[]
+}
+
+model Category {
+  id   String @id @default(cuid())
+  name String @unique
+  slug String @unique
+
+  freelancers FreelancerCategory[]
+  companies   CompanyCategory[]
+  skills      Skill[]
+}
+
+model Skill {
+  id         String    @id @default(cuid())
+  name       String    @unique
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id])
+
+  freelancers FreelancerSkill[]
+}
+
+model FreelancerCategory {
+  freelancerProfileId String
+  categoryId          String
+  freelancerProfile   FreelancerProfile @relation(fields: [freelancerProfileId], references: [id])
+  category            Category          @relation(fields: [categoryId], references: [id])
+
+  @@id([freelancerProfileId, categoryId])
+}
+
+model FreelancerSkill {
+  freelancerProfileId String
+  skillId             String
+  freelancerProfile   FreelancerProfile @relation(fields: [freelancerProfileId], references: [id])
+  skill               Skill             @relation(fields: [skillId], references: [id])
+
+  @@id([freelancerProfileId, skillId])
+}
+
+model CompanyCategory {
+  companyProfileId String
+  categoryId        String
+  companyProfile    CompanyProfile @relation(fields: [companyProfileId], references: [id])
+  category          Category       @relation(fields: [categoryId], references: [id])
+
+  @@id([companyProfileId, categoryId])
+}
+
+enum PortfolioItemType {
+  image
+  video
+  link
+  document
+}
+
+model PortfolioItem {
+  id                  String            @id @default(cuid())
+  freelancerProfileId String
+  freelancerProfile   FreelancerProfile @relation(fields: [freelancerProfileId], references: [id])
+  title               String
+  description         String?
+  type                PortfolioItemType
+  url                 String
+  createdAt           DateTime          @default(now())
+}
+
+model AdminActionLog {
+  id           String   @id @default(cuid())
+  adminId      String
+  targetUserId String?
+  action       String
+  metadata     Json?
+  createdAt    DateTime @default(now())
 }

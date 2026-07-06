@@ -15,35 +15,35 @@ Do not start implementation until the docs above are confirmed correct.
 
 ---
 
-## Phase 1 — Backend foundation (standalone, no frontend wiring yet)
+## Phase 1 — Backend foundation (standalone, no frontend wiring yet) ✅ done
 
 Goal: a running NestJS API with auth, testable via curl/Postman, completely independent of `apps/frontend`.
 
-- [ ] Scaffold NestJS app in `apps/backend` (`nest new`, align with `@porishrom/backend` package name already set)
-- [ ] `docker-compose.yml` at repo root: `postgres` service for local dev
-- [ ] Point `packages/database` at local Postgres, run first `prisma migrate dev` (User model only, extended with `status` field + `admin` role per data-model.md)
-- [ ] Wire `apps/backend` to import `@porishrom/database`'s generated Prisma client
-- [ ] Auth module: signup (role fixed at signup), login, JWT access+refresh via httpOnly cookies, logout, `/auth/me`
-- [ ] Password hashing with bcrypt (reuse logic pattern from `apps/frontend/src/app/auth/actions.ts`)
-- [ ] Basic role guard (Freelancer/Client/Admin) usable by future modules
-- [ ] Health check endpoint
-- [ ] Manual test plan: signup as freelancer, signup as client, login, hit `/auth/me`, confirm role guard rejects wrong-role access on a dummy protected route
+- [x] Scaffold NestJS app in `apps/backend` (built manually rather than via `nest new`, to align with `@porishrom/backend` package name and workspace conventions already in place)
+- [x] `docker-compose.yml` at repo root: `postgres` service for local dev (port 5433, since 5432 was already taken by an unrelated container on this machine)
+- [x] Point `packages/database` at local Postgres, run first `prisma migrate dev` (User model only, extended with `status` field + `admin` role per data-model.md)
+- [x] Wire `apps/backend` to import `@porishrom/database`'s generated Prisma client (required adding a build step to `packages/database` — Prisma 7's new client generator outputs raw TypeScript with explicit `.ts` import extensions, so the package now compiles itself to CJS via `tsc` with `moduleFormat = "cjs"` + `rewriteRelativeImportExtensions`, and exposes a `createPrismaClient()` factory wrapping `@prisma/adapter-pg`)
+- [x] Auth module: signup (role fixed at signup), login, JWT access+refresh via httpOnly cookies, logout, `/auth/me`
+- [x] Password hashing with bcrypt (bcryptjs, matching `apps/frontend/src/app/auth/actions.ts`)
+- [x] Basic role guard (Freelancer/Client/Admin) usable by future modules
+- [x] Health check endpoint
+- [x] Manual test plan: signup as freelancer, signup as client, login, hit `/auth/me`, confirm role guard rejects wrong-role access on a dummy protected route — all passed via curl
 
 ---
 
-## Phase 2 — Profiles, categories, skills, admin approval
+## Phase 2 — Profiles, categories, skills, admin approval ✅ done
 
 Goal: real profile data exists and admin can moderate it — still backend-only, testable via API calls.
 
-- [ ] `FreelancerProfile` / `CompanyProfile` models + migration
-- [ ] `Category` / `Skill` models + seed data (reuse categories already implied by `apps/frontend`'s onboarding: developer, graphic designer, drone operator, videographer, content writer, motion designer, social media, voice-over artist)
-- [ ] Join tables: `FreelancerCategory`, `FreelancerSkill`, `CompanyCategory`
-- [ ] `PortfolioItem` model + CRUD endpoints (Freelancer only, own items)
-- [ ] Profile CRUD endpoints (`GET/PATCH /freelancers/me`, `/companies/me`, public `GET /:id`)
-- [ ] Admin approval endpoints: approve/reject profile, issue/revoke badge
-- [ ] `AdminActionLog` model + auto-logging interceptor for admin mutations
-- [ ] Seed one Admin user manually (no public admin signup route)
-- [ ] Manual test plan: create freelancer profile, submit for review, admin approves, badge issued, profile now shows verified
+- [x] `FreelancerProfile` / `CompanyProfile` models + migration
+- [x] `Category` / `Skill` models + seed data (seeded from `apps/frontend`'s existing `PROFESSION_CATEGORIES`/`SKILL_SUGGESTIONS` in `onboarding-data.ts`, so filters line up with what onboarding already offers)
+- [x] Join tables: `FreelancerCategory`, `FreelancerSkill`, `CompanyCategory`
+- [x] `PortfolioItem` model + CRUD endpoints (Freelancer only, own items)
+- [x] Profile CRUD endpoints (`GET/PATCH /freelancers/me`, `/companies/me`, public `GET /:id`) — implemented as upsert, so first submit and later edits use the same endpoint; editing a previously-rejected profile automatically resets it to `pending` for resubmission
+- [x] Admin approval endpoints: approve/reject profile, issue/revoke badge
+- [x] `AdminActionLog` model + auto-logging interceptor for admin mutations (via a `@LogAdminAction()` decorator + `AdminActionLogInterceptor`)
+- [x] Seed one Admin user manually (`apps/backend/src/scripts/seed-admin.ts`, no public admin signup route)
+- [x] Manual test plan: create freelancer profile, submit for review, admin approves, badge issued, profile now shows verified — all passed via curl, including role-guard rejection of non-admin access to `/admin/*`
 
 ---
 
