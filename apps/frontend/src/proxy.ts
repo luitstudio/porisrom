@@ -18,7 +18,7 @@ export default auth((req) => {
   const isOnboardingPage = pathname.startsWith("/onboarding");
   const isDashboardPage = pathname.startsWith("/dashboard");
 
-  if (!session) {
+  if (!session?.user) {
     if (isDashboardPage || isOnboardingPage) {
       const loginUrl = new URL("/auth/login", nextUrl);
       loginUrl.searchParams.set("from", pathname);

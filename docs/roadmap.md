@@ -47,16 +47,24 @@ Goal: real profile data exists and admin can moderate it — still backend-only,
 
 ---
 
-## Phase 3 — Rewire `apps/frontend` onto the backend
+## Phase 3 — Rewire `apps/frontend` onto the backend ✅ done
 
 Goal: the existing frontend stops touching Prisma/its own DB directly and becomes a pure API consumer.
 
-- [ ] Replace `apps/frontend`'s local Prisma-backed NextAuth Credentials logic with calls to backend `/auth/*`
-- [ ] Onboarding wizard (`src/components/onboarding/*`) submits to backend profile endpoints instead of local server actions
-- [ ] Freelancer dashboard replaces `src/lib/freelancer-dashboard-data.ts` mock data with real API calls (profile, portfolio at minimum — jobs/earnings/messages come later phases)
-- [ ] Client dashboard fetches real profile data from backend
-- [ ] Remove `apps/frontend`'s own `prisma/` folder, `src/lib/prisma.ts`, and local SQLite dependency once nothing references them
-- [ ] Manual test plan: full signup → onboarding → dashboard flow works end-to-end against the backend, with zero direct DB access from the frontend process
+- [x] Replace `apps/frontend`'s local Prisma-backed NextAuth Credentials logic with calls to backend `/auth/*` — `authorize()` now calls backend `/auth/login`; backend returns `{ user, accessToken, refreshToken }` in the response body (not just cookies) specifically so this BFF-style server-to-server call can capture them; JWT strategy accepts both Bearer header (frontend) and cookie (direct browser/curl)
+- [x] **Product decision made mid-phase**: role is now chosen at signup (a Freelancer/Client toggle added to the signup form) instead of on a separate post-signup onboarding screen — the old `RoleSelectionScreen`/`RoleCard` components and `setRoleAction` are removed as redundant
+- [x] Onboarding wizard submits to backend profile endpoints (`PATCH /freelancers/me` or `/companies/me`, plus portfolio links) instead of local server actions; category/skill names are resolved to backend IDs via `GET /categories`/`GET /skills`
+- [x] Freelancer dashboard and client dashboard fetch the real user via a shared `getCurrentUser()` helper (`auth()` + backend `GET /auth/me`) — KPI/jobs/earnings mock UI is left as-is since those entities don't exist until later phases
+- [x] Removed `apps/frontend`'s `prisma/` folder, `prisma.config.ts`, `src/lib/prisma.ts`, and the `@libsql/client`/`@prisma/*`/`bcryptjs` dependencies
+- [x] Manual test plan: full signup → onboarding → dashboard flow verified end-to-end in a real browser (Playwright) for both Freelancer and Client roles, zero console/network errors, zero direct DB access from the frontend process
+
+Bugs found and fixed during verification (all real, not test artifacts):
+- NextAuth v5's `UntrustedHost` check rejected the local non-Vercel host — fixed with `AUTH_TRUST_HOST=true`
+- The root `SessionProvider` doesn't remount across the soft client-side navigation that a Server Action's `redirect()` performs, so `useSession()` in the onboarding wizard read the stale pre-sign-in session on first render even though the cookie was already valid — fixed by forcing one `update()` resync on mount when `status === "unauthenticated"`
+- After finishing onboarding, the NextAuth JWT still had the stale `isOnboarded: false` cached from login, so the middleware bounced the user straight back to `/onboarding` — fixed by calling `update({ isOnboarded: true })` before navigating to the dashboard (this call existed in the original code and was dropped during the rewrite; restored)
+- Turbopack couldn't infer the correct project root in the new monorepo layout — fixed via an explicit `turbopack.root` in `next.config.ts`
+
+Known gap, not fixed in this phase: `User.profileCompleteness` is never recomputed by the backend, so dashboards still show "0% complete" regardless of actual profile state — cosmetic, deferred.
 
 ---
 

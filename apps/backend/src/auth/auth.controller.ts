@@ -14,6 +14,7 @@ import {
 import { AuthService } from "./auth.service";
 import { CurrentUser, type CurrentUserPayload } from "./decorators/current-user.decorator";
 import { LoginDto } from "./dto/login.dto";
+import { RefreshDto } from "./dto/refresh.dto";
 import { SignupDto } from "./dto/signup.dto";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 
@@ -26,29 +27,36 @@ export class AuthController {
 
   @Post("signup")
   async signup(@Body() dto: SignupDto, @Res({ passthrough: true }) res: Response) {
-    const tokens = await this.authService.signup(dto);
-    this.setAuthCookies(res, tokens);
-    return { success: true };
+    const result = await this.authService.signup(dto);
+    this.setAuthCookies(res, result);
+    return result;
   }
 
   @Post("login")
   @HttpCode(200)
   async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
-    const tokens = await this.authService.login(dto);
-    this.setAuthCookies(res, tokens);
-    return { success: true };
+    const result = await this.authService.login(dto);
+    this.setAuthCookies(res, result);
+    return result;
   }
 
   @Post("refresh")
   @HttpCode(200)
-  async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    const refreshToken = req.cookies?.[REFRESH_COOKIE];
+  async refresh(
+    @Body() dto: RefreshDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    // Browser clients send the refresh token via httpOnly cookie; server-to-server
+    // callers (e.g. the Next.js frontend acting as a BFF) have no backend cookies,
+    // so they pass it explicitly in the body instead.
+    const refreshToken = dto.refreshToken ?? req.cookies?.[REFRESH_COOKIE];
     if (!refreshToken) {
       throw new UnauthorizedException("Missing refresh token");
     }
-    const tokens = await this.authService.refresh(refreshToken);
-    this.setAuthCookies(res, tokens);
-    return { success: true };
+    const result = await this.authService.refresh(refreshToken);
+    this.setAuthCookies(res, result);
+    return result;
   }
 
   @Post("logout")

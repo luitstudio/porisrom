@@ -7,6 +7,7 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { JwtService, type JwtSignOptions } from "@nestjs/jwt";
+import type { User } from "@porishrom/database";
 
 import { PrismaService } from "../prisma/prisma.service";
 import type { LoginDto } from "./dto/login.dto";
@@ -41,7 +42,7 @@ export class AuthService {
       },
     });
 
-    return this.issueTokens(user.id, user.role);
+    return this.buildAuthPayload(user);
   }
 
   async login(dto: LoginDto) {
@@ -59,7 +60,7 @@ export class AuthService {
       throw new ForbiddenException("Account is not active");
     }
 
-    return this.issueTokens(user.id, user.role);
+    return this.buildAuthPayload(user);
   }
 
   async refresh(refreshToken: string) {
@@ -77,7 +78,7 @@ export class AuthService {
       throw new UnauthorizedException("Invalid refresh token");
     }
 
-    return this.issueTokens(user.id, user.role);
+    return this.buildAuthPayload(user);
   }
 
   async me(userId: string) {
@@ -85,6 +86,15 @@ export class AuthService {
     if (!user) {
       throw new UnauthorizedException();
     }
+    return this.sanitize(user);
+  }
+
+  private buildAuthPayload(user: User) {
+    const tokens = this.issueTokens(user.id, user.role);
+    return { user: this.sanitize(user), ...tokens };
+  }
+
+  private sanitize(user: User) {
     return {
       id: user.id,
       name: user.name,

@@ -1,5 +1,5 @@
 import type { Request } from "express";
-import { Strategy } from "passport-jwt";
+import { ExtractJwt, Strategy } from "passport-jwt";
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PassportStrategy } from "@nestjs/passport";
@@ -14,7 +14,12 @@ function cookieExtractor(req: Request): string | null {
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(configService: ConfigService) {
     super({
-      jwtFromRequest: cookieExtractor,
+      // Bearer header first (server-to-server callers like the Next.js BFF, which has
+      // no backend cookies of its own), falling back to the cookie (browser/curl callers).
+      jwtFromRequest: ExtractJwt.fromExtractors([
+        ExtractJwt.fromAuthHeaderAsBearerToken(),
+        cookieExtractor,
+      ]),
       ignoreExpiration: false,
       secretOrKey: configService.getOrThrow<string>("JWT_ACCESS_SECRET"),
     });

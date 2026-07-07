@@ -35,6 +35,7 @@ export function SignupForm() {
   const [state, formAction, isPending] = useActionState(signupAction, initialState);
   const [showPassword, setShowPassword] = React.useState(false);
   const [acceptedTerms, setAcceptedTerms] = React.useState(false);
+  const [role, setRole] = React.useState<"freelancer" | "client">("freelancer");
   const emailRef = React.useRef<HTMLInputElement>(null);
   const prefersReducedMotion = useReducedMotion();
 
@@ -59,6 +60,39 @@ export function SignupForm() {
       transition={{ duration: prefersReducedMotion ? 0 : 0.22, ease: "easeOut" }}
       className={`flex flex-col gap-5 ${isPending ? "cursor-progress" : ""}`}
     >
+      <div className="flex flex-col gap-2">
+        <Label>I&apos;m signing up as</Label>
+        <input type="hidden" name="role" value={role} />
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={() => setRole("freelancer")}
+            aria-pressed={role === "freelancer"}
+            className={`h-12 rounded-xl border text-sm font-medium transition-colors ${
+              role === "freelancer"
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border bg-transparent text-muted-foreground hover:bg-accent"
+            }`}
+          >
+            Freelancer
+          </button>
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={() => setRole("client")}
+            aria-pressed={role === "client"}
+            className={`h-12 rounded-xl border text-sm font-medium transition-colors ${
+              role === "client"
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border bg-transparent text-muted-foreground hover:bg-accent"
+            }`}
+          >
+            Client
+          </button>
+        </div>
+      </div>
+
       <div className="flex flex-col gap-2">
         <Label htmlFor="name">Full name</Label>
         <Input

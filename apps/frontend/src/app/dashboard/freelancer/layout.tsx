@@ -1,19 +1,15 @@
 import { redirect } from "next/navigation";
 
-import { auth } from "@/auth";
-import { prisma } from "@/lib/prisma";
 import { FreelancerSidebar } from "@/components/dashboard/freelancer/sidebar";
 import { MobileTabBar } from "@/components/dashboard/freelancer/mobile-tab-bar";
+import { getCurrentUser } from "@/lib/current-user";
 
 export default async function FreelancerDashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const session = await auth();
-  if (!session) redirect("/auth/login");
-
-  const user = await prisma.user.findUnique({ where: { id: session.user.id } });
+  const user = await getCurrentUser();
   if (!user) redirect("/auth/login");
 
   return (

@@ -1,8 +1,7 @@
 import { redirect } from "next/navigation";
 
-import { auth } from "@/auth";
-import { prisma } from "@/lib/prisma";
 import { ProfileCompletionBanner } from "@/components/dashboard/profile-completion-banner";
+import { getCurrentUser } from "@/lib/current-user";
 import { DashboardHero } from "@/components/dashboard/freelancer/dashboard-hero";
 import { KpiRow } from "@/components/dashboard/freelancer/kpi-row";
 import { KpiCarousel } from "@/components/dashboard/freelancer/kpi-carousel";
@@ -22,10 +21,7 @@ function greetingForHour(hour: number) {
 }
 
 export default async function FreelancerDashboardPage() {
-  const session = await auth();
-  if (!session) redirect("/auth/login");
-
-  const user = await prisma.user.findUnique({ where: { id: session.user.id } });
+  const user = await getCurrentUser();
   if (!user) redirect("/auth/login");
 
   const firstName = user.name.split(" ")[0];

@@ -1,9 +1,21 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import bcrypt from "bcryptjs";
 
 import { authConfig } from "@/auth.config";
-import { prisma } from "@/lib/prisma";
+import { backendFetch } from "@/lib/backend-api";
+
+type LoginResponse = {
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    role: "freelancer" | "client" | "admin" | null;
+    isOnboarded: boolean;
+    profileCompleteness: number;
+  };
+  accessToken: string;
+  refreshToken: string;
+};
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -21,25 +33,25 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null;
         }
 
-        const user = await prisma.user.findUnique({
-          where: { email: email.toLowerCase() },
-        });
+        try {
+          const result = await backendFetch<LoginResponse>("/auth/login", {
+            method: "POST",
+            body: { email: email.toLowerCase(), password },
+          });
 
-        if (!user) return null;
-
-        const passwordsMatch = await bcrypt.compare(
-          password,
-          user.passwordHash
-        );
-        if (!passwordsMatch) return null;
-
-        return {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          isOnboarded: user.isOnboarded,
-        };
+          return {
+            id: result.user.id,
+            name: result.user.name,
+            email: result.user.email,
+            role: result.user.role === "admin" ? null : result.user.role,
+            isOnboarded: result.user.isOnboarded,
+            accessToken: result.accessToken,
+            refreshToken: result.refreshToken,
+          };
+        } catch (err) {
+          console.error("Backend login failed during authorize():", err);
+          return null;
+        }
       },
     }),
   ],

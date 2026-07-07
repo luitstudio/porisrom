@@ -8,7 +8,6 @@ type OnboardingDashboardShellProps = {
   steps: Step[];
   currentStep: number;
   tip?: string;
-  onSwitchRole: () => void;
   children: React.ReactNode;
 };
 
@@ -17,7 +16,6 @@ export function OnboardingDashboardShell({
   steps,
   currentStep,
   tip,
-  onSwitchRole,
   children,
 }: OnboardingDashboardShellProps) {
   return (
@@ -27,13 +25,6 @@ export function OnboardingDashboardShell({
           <Link href="/" className="font-display text-lg font-semibold text-foreground">
             Porisrom
           </Link>
-          <button
-            type="button"
-            onClick={onSwitchRole}
-            className="text-xs font-medium text-muted-foreground hover:text-foreground"
-          >
-            Not a {roleLabel.toLowerCase()}? Switch
-          </button>
         </div>
       </header>
 

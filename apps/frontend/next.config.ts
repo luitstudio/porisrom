@@ -3,7 +3,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   turbopack: {
-    root: path.resolve(__dirname),
+    // Monorepo: the pnpm lockfile lives at the workspace root, not here, so
+    // Turbopack's own root inference needs an explicit override.
+    root: path.resolve(__dirname, "..", ".."),
   },
 };
 
