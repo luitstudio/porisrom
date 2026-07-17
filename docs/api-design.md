@@ -42,8 +42,8 @@ Roles column: **F** = Freelancer, **C** = Company/Client, **A** = Admin, **Publi
 
 | Method | Path | Roles | Notes |
 |---|---|---|---|
-| GET | `/search/freelancers` | Public | query: category, skill, location, minRating, verifiedOnly, experience, page, pageSize |
-| GET | `/search/companies` | Public | query: category, location, minRating, verifiedOnly, page, pageSize |
+| GET | `/search/freelancers` | Public | query: `categoryId`, `skillId`, `state`, `minRating`, `verifiedOnly`, `experienceLevel`, `page`, `pageSize`; only returns `verificationStatus: "approved"` profiles |
+| GET | `/search/companies` | Public | query: `categoryId`, `state`, `minRating`, `verifiedOnly`, `page`, `pageSize`; only returns `verificationStatus: "approved"` profiles |
 
 ## Connections
 

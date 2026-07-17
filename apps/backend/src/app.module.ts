@@ -7,6 +7,7 @@ import { CatalogModule } from "./catalog/catalog.module";
 import { HealthController } from "./health/health.controller";
 import { PrismaModule } from "./prisma/prisma.module";
 import { ProfilesModule } from "./profiles/profiles.module";
+import { SearchModule } from "./search/search.module";
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { ProfilesModule } from "./profiles/profiles.module";
     CatalogModule,
     ProfilesModule,
     AdminModule,
+    SearchModule,
   ],
   controllers: [HealthController],
 })

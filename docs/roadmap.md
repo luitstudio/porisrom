@@ -68,13 +68,16 @@ Known gap, not fixed in this phase: `User.profileCompleteness` is never recomput
 
 ---
 
-## Phase 4 — Discovery & search
+## Phase 4 — Discovery & search ✅ done
 
-- [ ] `/search/freelancers` and `/search/companies` endpoints (category, skill, location, rating, verified-only, experience filters; pagination)
-- [ ] Frontend: freelancer browse/search page with filters (Company-facing)
-- [ ] Frontend: company browse/search page with filters (Freelancer-facing)
-- [ ] Public profile pages (portfolio, ratings, categories/skills) for both roles
-- [ ] Manual test plan: seed a handful of profiles across categories, verify filter combinations return correct results
+- [x] `/search/freelancers` and `/search/companies` endpoints (categoryId, skill Id, state, minRating, verifiedOnly, experienceLevel filters; pagination). Both only return `verificationStatus: "approved"` profiles — pending/rejected profiles never appear in public search, confirmed via test
+- [x] Frontend: `/freelancers` browse page with filters (Company-facing) — category/state/experience/verified-only, GET-form driven (works without JS), paginated
+- [x] Frontend: `/companies` browse page with filters (Freelancer-facing) — same pattern
+- [x] Public profile pages: `/freelancers/[id]` (bio, location, experience, rating, categories, skills, portfolio links) and `/companies/[id]` (about, location, rating, hiring categories); both 404 via `notFound()` for a nonexistent id
+- [x] Added "Find Companies" to the navbar alongside the pre-existing "Find Freelancers" link
+- [x] Manual test plan: seeded 3 freelancers across categories/states/experience levels (2 approved, 1 left pending) + approved the company profile from Phase 3; verified every filter combination via curl, then verified the same end-to-end in a real browser (Playwright) — filtering, pagination-safe rendering, click-through to profile pages, and the pending profile's exclusion, all confirmed with zero console/network errors
+
+Known gap carried over from Phase 3: the client onboarding UI's category picker (`BUSINESS_CATEGORIES`, e.g. "Tech Startup") still doesn't match the seeded `Category` taxonomy (freelancer professions), so `CompanyCategory` stays empty for real users — company search's `categoryId` filter and the "Hiring categories" section on company profiles won't have real data until this is reconciled.
 
 ---
 

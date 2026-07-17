@@ -41,6 +41,7 @@ type NavEntry =
 const NAV_ENTRIES: NavEntry[] = [
   { label: "Browse Jobs", href: "/jobs" },
   { label: "Find Freelancers", href: "/freelancers" },
+  { label: "Find Companies", href: "/companies" },
   {
     label: "Categories",
     items: [
