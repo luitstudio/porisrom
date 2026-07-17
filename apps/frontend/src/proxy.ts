@@ -5,7 +5,8 @@ import { authConfig } from "@/auth.config";
 
 const { auth } = NextAuth(authConfig);
 
-function dashboardPathFor(role: "freelancer" | "client" | null) {
+function dashboardPathFor(role: "freelancer" | "client" | "admin" | null) {
+  if (role === "admin") return "/admin/payments";
   return role === "freelancer" ? "/dashboard/freelancer" : "/dashboard/client";
 }
 

@@ -4,7 +4,7 @@ declare module "next-auth" {
   interface Session {
     user: {
       id: string;
-      role: "freelancer" | "client" | null;
+      role: "freelancer" | "client" | "admin" | null;
       isOnboarded: boolean;
     } & DefaultSession["user"];
     accessToken: string;
@@ -12,7 +12,7 @@ declare module "next-auth" {
   }
 
   interface User {
-    role?: "freelancer" | "client" | null;
+    role?: "freelancer" | "client" | "admin" | null;
     isOnboarded?: boolean;
     accessToken?: string;
     refreshToken?: string;
@@ -23,7 +23,7 @@ declare module "next-auth" {
 declare module "next-auth/jwt" {
   interface JWT {
     id: string;
-    role: "freelancer" | "client" | null;
+    role: "freelancer" | "client" | "admin" | null;
     isOnboarded: boolean;
     accessToken: string;
     refreshToken: string;

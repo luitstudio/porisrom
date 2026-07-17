@@ -42,6 +42,35 @@ export class AdminService {
     return this.prisma.db.adminActionLog.findMany({ orderBy: { createdAt: "desc" } });
   }
 
+  listPayments() {
+    return this.prisma.db.paymentVerification.findMany({
+      include: {
+        workAssignment: {
+          select: {
+            id: true,
+            title: true,
+            status: true,
+            budgetAmount: true,
+            currency: true,
+            conversation: {
+              select: {
+                connection: {
+                  select: {
+                    requester: { select: { id: true, name: true } },
+                    receiver: { select: { id: true, name: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      // Enum ordering doesn't put "mismatch" in a useful position either way, so sort by
+      // recent activity instead — the frontend highlights mismatch/disputed items visually.
+      orderBy: { workAssignment: { updatedAt: "desc" } },
+    });
+  }
+
   private async setVerificationStatus(userId: string, status: "approved" | "rejected") {
     const user = await this.prisma.db.user.findUnique({ where: { id: userId } });
     if (!user) {

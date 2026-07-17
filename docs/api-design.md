@@ -77,17 +77,18 @@ Roles column: **F** = Freelancer, **C** = Company/Client, **A** = Admin, **Publi
 
 | Method | Path | Roles | Notes |
 |---|---|---|---|
-| POST | `/work-assignments/:id/deliverables` | F | submit demo/preview/file/link; sets status → submitted |
-| PATCH | `/work-assignments/:id/delivery/accept` | C | status → delivery_accepted, unlocks payment |
-| PATCH | `/work-assignments/:id/delivery/request-revision` | C | status → revision_requested, back to freelancer |
+| POST | `/work-assignments/:id/deliverables` | F | body: `{ type, url, note? }`; valid from `accepted`/`in_progress`/`revision_requested`; sets status → `submitted` |
+| PATCH | `/work-assignments/:id/delivery/accept` | C | status → `payment_pending`; also creates the `PaymentVerification` row |
+| PATCH | `/work-assignments/:id/delivery/request-revision` | C | body: `{ note? }`; status → `revision_requested`; Freelancer resubmitting via the deliverables endpoint sends it back to `submitted` |
 
 ## Payment verification
 
 | Method | Path | Roles | Notes |
 |---|---|---|---|
-| POST | `/work-assignments/:id/payment/claim-paid` | C | body: `utr` |
-| POST | `/work-assignments/:id/payment/claim-received` | F | body: `utr`; auto-matches against client's claim → verified or mismatch |
-| GET | `/work-assignments/:id/payment` | F/C (participant), A | current verification state |
+| POST | `/work-assignments/:id/payment/claim-paid` | C | body: `{ utr }`; only valid while status is `payment_pending` |
+| POST | `/work-assignments/:id/payment/claim-received` | F | body: `{ utr }`; auto-compares against the other side's claim once both are present → `verified` (assignment → `completed`) or `mismatch` (both UTRs cleared so the next attempt is a genuinely fresh comparison; after 3 mismatches, assignment → `disputed` and further claims are rejected until admin resolves it) |
+| GET | `/work-assignments/:id/payment` | F/C (participant) | current verification state |
+| GET | `/admin/payments` | A | oversight list of every `PaymentVerification`, each with its work assignment/parties, for spotting `mismatch`/`disputed` items |
 
 ## Reviews
 

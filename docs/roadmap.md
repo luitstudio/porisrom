@@ -106,14 +106,16 @@ Bug found and fixed during verification: a React hydration mismatch (#418) from 
 
 ---
 
-## Phase 7 — Delivery, payment verification
+## Phase 7 — Delivery, payment verification ✅ done
 
-- [ ] `Deliverable` model + submit endpoint (Freelancer)
-- [ ] Delivery review endpoints: accept / request-revision (Company)
-- [ ] `PaymentVerification` model + claim-paid (Company) / claim-received (Freelancer) endpoints with UTR matching logic, mismatch counter, auto-flag-to-admin after N mismatches
-- [ ] Frontend: submit-deliverable UI (Freelancer), review UI (Company), payment claim UI both sides
-- [ ] Admin: payment oversight view (read-only list, flagged mismatches highlighted)
-- [ ] Manual test plan: submit deliverable → company requests revision → resubmit → company accepts → both claim payment with matching UTR → assignment reaches Completed; separately, test mismatched UTRs → stays pending → corrected → verified
+- [x] `Deliverable` model + submit endpoint (Freelancer) — valid from `accepted`/`in_progress`/`revision_requested`, moves status to `submitted`
+- [x] Delivery review endpoints: accept (→ `payment_pending`, also creates the `PaymentVerification` row) / request-revision (→ `revision_requested`, Freelancer resubmits to loop back to `submitted`) (Company)
+- [x] `PaymentVerification` model + claim-paid (Company) / claim-received (Freelancer) endpoints with UTR matching logic, mismatch counter, auto-flag-to-admin (`disputed`) after 3 mismatches
+- [x] Frontend: submit-deliverable UI (Freelancer), review UI (Company), payment claim UI both sides — all built into the same `WorkAssignmentPanel` from Phase 6
+- [x] Admin: payment oversight view (read-only list, flagged mismatches/disputes highlighted in red) — built as a stopgap page at `/admin/payments` inside `apps/frontend` (gated to the admin role) since `apps/admin` doesn't exist as a real app until Phase 9; this surfaced a real gap from Phase 3 — the frontend's session/JWT types deliberately excluded `"admin"` (mapped to `null`) since the frontend wasn't meant to handle that role. Fixed by widening the role type end-to-end and letting `admin` flow through properly, since it now needs to reach this page
+- [x] Manual test plan: verified via curl (submit → request-revision → resubmit → accept → mismatched UTRs → corrected → verified/completed, plus a separate run to hit the 3-mismatch dispute threshold) and a real two-browser-context session covering the same loop end-to-end, plus the admin oversight page
+
+Bug found and fixed during verification: the mismatch counter incremented **twice per correction round** instead of once. After a mismatch, the other party's stale UTR was left in place, so the very next claim from either side got compared against that stale value before the other party had reacted — reaching the 3-mismatch dispute threshold after only 2 real rounds. Fixed by clearing both UTRs whenever a mismatch is recorded, so every subsequent comparison is against a genuinely fresh pair of claims.
 
 ---
 

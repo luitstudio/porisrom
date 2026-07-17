@@ -43,7 +43,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             id: result.user.id,
             name: result.user.name,
             email: result.user.email,
-            role: result.user.role === "admin" ? null : result.user.role,
+            role: result.user.role,
             isOnboarded: result.user.isOnboarded,
             accessToken: result.accessToken,
             refreshToken: result.refreshToken,

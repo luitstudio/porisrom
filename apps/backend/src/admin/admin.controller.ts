@@ -42,4 +42,9 @@ export class AdminController {
   actionLog() {
     return this.adminService.listActionLog();
   }
+
+  @Get("payments")
+  listPayments() {
+    return this.adminService.listPayments();
+  }
 }

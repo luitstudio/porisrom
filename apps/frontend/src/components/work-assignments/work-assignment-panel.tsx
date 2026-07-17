@@ -3,14 +3,29 @@
 import * as React from "react";
 
 import {
+  acceptDeliveryAction,
   cancelWorkAssignmentAction,
+  claimPaidAction,
+  claimReceivedAction,
   createWorkAssignmentAction,
   listWorkAssignmentsAction,
+  requestDeliveryRevisionAction,
   respondWorkAssignmentAction,
   reviseWorkAssignmentAction,
+  submitDeliverableAction,
+  type DeliverableType,
   type WorkAssignment,
 } from "@/app/work-assignments/actions";
 import { Button } from "@/components/ui/button";
+
+const DELIVERABLE_TYPES: { value: DeliverableType; label: string }[] = [
+  { value: "drive_link", label: "Drive link" },
+  { value: "github_link", label: "GitHub link" },
+  { value: "demo", label: "Demo link" },
+  { value: "preview", label: "Preview link" },
+  { value: "watermarked_file", label: "Watermarked file link" },
+  { value: "file", label: "File link" },
+];
 
 const POLL_INTERVAL_MS = 6000;
 const TERMINAL_STATUSES = new Set(["rejected", "cancelled", "completed"]);
@@ -18,7 +33,7 @@ const TERMINAL_STATUSES = new Set(["rejected", "cancelled", "completed"]);
 type WorkAssignmentPanelProps = {
   conversationId: string;
   viewerUserId: string;
-  viewerRole: "freelancer" | "client" | null;
+  viewerRole: "freelancer" | "client" | "admin" | null;
   otherPartyName: string;
   initialAssignments: WorkAssignment[];
 };
@@ -56,6 +71,22 @@ function actionLabel(action: string) {
       return "requested to cancel";
     case "cancelled":
       return "confirmed the cancellation";
+    case "submitted":
+      return "submitted a deliverable";
+    case "revision_requested":
+      return "requested a delivery revision";
+    case "delivery_accepted":
+      return "accepted the delivery";
+    case "payment_claimed_paid":
+      return "marked the payment as sent";
+    case "payment_claimed_received":
+      return "marked the payment as received";
+    case "payment_mismatch":
+      return "submitted a transaction ID that didn't match";
+    case "payment_verified":
+      return "confirmed matching payment — assignment completed";
+    case "payment_disputed":
+      return "hit repeated payment mismatches — flagged for admin review";
     default:
       return action;
   }
@@ -72,6 +103,8 @@ export function WorkAssignmentPanel({
   const [showCreateForm, setShowCreateForm] = React.useState(false);
   const [showModificationForm, setShowModificationForm] = React.useState(false);
   const [showReviseForm, setShowReviseForm] = React.useState(false);
+  const [showDeliverableForm, setShowDeliverableForm] = React.useState(false);
+  const [showRevisionRequestForm, setShowRevisionRequestForm] = React.useState(false);
   const [pending, setPending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -105,6 +138,8 @@ export function WorkAssignmentPanel({
     setShowCreateForm(false);
     setShowModificationForm(false);
     setShowReviseForm(false);
+    setShowDeliverableForm(false);
+    setShowRevisionRequestForm(false);
     await refresh();
     return true;
   }
@@ -115,11 +150,20 @@ export function WorkAssignmentPanel({
 
       {!active || TERMINAL_STATUSES.has(active.status) ? (
         <div className="mt-2">
-          {active && (
-            <p className="text-sm text-muted-foreground">
-              Last assignment &quot;{active.title}&quot; is{" "}
-              <span className="font-medium">{active.status}</span>.
+          {active && active.status === "completed" ? (
+            <p className="text-sm text-foreground">
+              &quot;{active.title}&quot; is complete — payment verified
+              {active.paymentVerification?.verifiedAt &&
+                ` on ${formatDate(active.paymentVerification.verifiedAt)}`}
+              .
             </p>
+          ) : (
+            active && (
+              <p className="text-sm text-muted-foreground">
+                Last assignment &quot;{active.title}&quot; is{" "}
+                <span className="font-medium">{active.status}</span>.
+              </p>
+            )
           )}
           {isCompany && !showCreateForm && (
             <Button size="sm" className="mt-2" onClick={() => setShowCreateForm(true)}>
@@ -240,37 +284,113 @@ export function WorkAssignmentPanel({
             </p>
           )}
 
-          {active.status === "accepted" && (
-            <div>
-              {active.cancelRequestedById && active.cancelRequestedById !== viewerUserId ? (
-                <div className="flex items-center gap-2">
-                  <p className="text-sm text-muted-foreground">
-                    {otherPartyName} requested to cancel this assignment.
-                  </p>
+          {(active.status === "accepted" || active.status === "in_progress") && (
+            <div className="flex flex-col gap-3">
+              <CancelSection
+                active={active}
+                viewerUserId={viewerUserId}
+                otherPartyName={otherPartyName}
+                pending={pending}
+                onCancel={() => runAction(() => cancelWorkAssignmentAction(active.id))}
+              />
+              {isFreelancer && !showDeliverableForm && (
+                <Button size="sm" className="self-start" onClick={() => setShowDeliverableForm(true)}>
+                  Submit Deliverable
+                </Button>
+              )}
+              {isFreelancer && showDeliverableForm && (
+                <SubmitDeliverableForm
+                  pending={pending}
+                  onCancel={() => setShowDeliverableForm(false)}
+                  onSubmit={(data) => runAction(() => submitDeliverableAction(active.id, data))}
+                />
+              )}
+              {isCompany && (
+                <p className="text-sm text-muted-foreground">
+                  Waiting for {otherPartyName} to submit the work.
+                </p>
+              )}
+            </div>
+          )}
+
+          {active.status === "submitted" && (
+            <div className="flex flex-col gap-3">
+              <DeliverablesList deliverables={active.deliverables} />
+              {isCompany && !showRevisionRequestForm && (
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    disabled={pending}
+                    onClick={() => runAction(() => acceptDeliveryAction(active.id))}
+                  >
+                    Accept Delivery
+                  </Button>
                   <Button
                     size="sm"
                     variant="outline"
                     disabled={pending}
-                    onClick={() => runAction(() => cancelWorkAssignmentAction(active.id))}
+                    onClick={() => setShowRevisionRequestForm(true)}
                   >
-                    Confirm Cancellation
+                    Request Revision
                   </Button>
                 </div>
-              ) : active.cancelRequestedById === viewerUserId ? (
+              )}
+              {isCompany && showRevisionRequestForm && (
+                <NoteForm
+                  placeholder="What needs to change before you can accept this?"
+                  pending={pending}
+                  onCancel={() => setShowRevisionRequestForm(false)}
+                  onSubmit={(note) =>
+                    runAction(() => requestDeliveryRevisionAction(active.id, note))
+                  }
+                />
+              )}
+              {isFreelancer && (
                 <p className="text-sm text-muted-foreground">
-                  Waiting for {otherPartyName} to confirm the cancellation.
+                  Waiting for {otherPartyName} to review your submission.
                 </p>
-              ) : (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={pending}
-                  onClick={() => runAction(() => cancelWorkAssignmentAction(active.id))}
-                >
-                  Request Cancellation
-                </Button>
               )}
             </div>
+          )}
+
+          {active.status === "revision_requested" && (
+            <div className="flex flex-col gap-3">
+              <DeliverablesList deliverables={active.deliverables} />
+              {isFreelancer && !showDeliverableForm && (
+                <Button size="sm" className="self-start" onClick={() => setShowDeliverableForm(true)}>
+                  Resubmit Deliverable
+                </Button>
+              )}
+              {isFreelancer && showDeliverableForm && (
+                <SubmitDeliverableForm
+                  pending={pending}
+                  onCancel={() => setShowDeliverableForm(false)}
+                  onSubmit={(data) => runAction(() => submitDeliverableAction(active.id, data))}
+                />
+              )}
+              {isCompany && (
+                <p className="text-sm text-muted-foreground">
+                  Waiting for {otherPartyName} to resubmit the work.
+                </p>
+              )}
+            </div>
+          )}
+
+          {active.status === "payment_pending" && (
+            <PaymentSection
+              assignment={active}
+              isCompany={isCompany}
+              pending={pending}
+              onClaimPaid={(utr) => runAction(() => claimPaidAction(active.id, utr))}
+              onClaimReceived={(utr) => runAction(() => claimReceivedAction(active.id, utr))}
+            />
+          )}
+
+          {active.status === "disputed" && (
+            <p className="text-sm text-destructive">
+              This payment has repeatedly failed to verify and is now flagged for admin review.
+              Please contact support for resolution.
+            </p>
           )}
         </div>
       )}
@@ -373,6 +493,193 @@ function CreateAssignmentForm({
         </Button>
       </div>
     </form>
+  );
+}
+
+function CancelSection({
+  active,
+  viewerUserId,
+  otherPartyName,
+  pending,
+  onCancel,
+}: {
+  active: WorkAssignment;
+  viewerUserId: string;
+  otherPartyName: string;
+  pending: boolean;
+  onCancel: () => void;
+}) {
+  if (active.cancelRequestedById && active.cancelRequestedById !== viewerUserId) {
+    return (
+      <div className="flex items-center gap-2">
+        <p className="text-sm text-muted-foreground">
+          {otherPartyName} requested to cancel this assignment.
+        </p>
+        <Button size="sm" variant="outline" disabled={pending} onClick={onCancel}>
+          Confirm Cancellation
+        </Button>
+      </div>
+    );
+  }
+  if (active.cancelRequestedById === viewerUserId) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Waiting for {otherPartyName} to confirm the cancellation.
+      </p>
+    );
+  }
+  return (
+    <Button size="sm" variant="outline" className="self-start" disabled={pending} onClick={onCancel}>
+      Request Cancellation
+    </Button>
+  );
+}
+
+function DeliverablesList({ deliverables }: { deliverables: WorkAssignment["deliverables"] }) {
+  if (deliverables.length === 0) return null;
+
+  return (
+    <div>
+      <h3 className="text-xs font-semibold text-foreground">Submitted files</h3>
+      <ul className="mt-1 flex flex-col gap-1">
+        {deliverables
+          .slice()
+          .reverse()
+          .map((d) => (
+            <li key={d.id} className="text-sm">
+              <a
+                href={d.url}
+                target="_blank"
+                rel="noreferrer"
+                className="text-primary hover:underline"
+              >
+                {DELIVERABLE_TYPES.find((t) => t.value === d.type)?.label ?? d.type}
+              </a>
+              {d.note && <span className="text-muted-foreground"> — {d.note}</span>}
+            </li>
+          ))}
+      </ul>
+    </div>
+  );
+}
+
+function SubmitDeliverableForm({
+  pending,
+  onCancel,
+  onSubmit,
+}: {
+  pending: boolean;
+  onCancel: () => void;
+  onSubmit: (data: { type: DeliverableType; url: string; note?: string }) => void;
+}) {
+  const [type, setType] = React.useState<DeliverableType>("drive_link");
+  const [url, setUrl] = React.useState("");
+  const [note, setNote] = React.useState("");
+
+  return (
+    <form
+      className="flex flex-col gap-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSubmit({ type, url, note: note || undefined });
+      }}
+    >
+      <select
+        value={type}
+        onChange={(e) => setType(e.target.value as DeliverableType)}
+        className="h-10 rounded-lg border border-input bg-transparent px-3 text-sm text-foreground"
+      >
+        {DELIVERABLE_TYPES.map((t) => (
+          <option key={t.value} value={t.value}>
+            {t.label}
+          </option>
+        ))}
+      </select>
+      <input
+        required
+        type="url"
+        placeholder="https://..."
+        value={url}
+        onChange={(e) => setUrl(e.target.value)}
+        className="h-10 rounded-lg border border-input bg-transparent px-3 text-sm text-foreground"
+      />
+      <textarea
+        placeholder="Note (optional)"
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        rows={2}
+        className="rounded-lg border border-input bg-transparent px-3 py-2 text-sm text-foreground"
+      />
+      <div className="flex gap-2">
+        <Button type="submit" size="sm" disabled={pending}>
+          Submit
+        </Button>
+        <Button type="button" size="sm" variant="ghost" onClick={onCancel} disabled={pending}>
+          Cancel
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+function PaymentSection({
+  assignment,
+  isCompany,
+  pending,
+  onClaimPaid,
+  onClaimReceived,
+}: {
+  assignment: WorkAssignment;
+  isCompany: boolean;
+  pending: boolean;
+  onClaimPaid: (utr: string) => void;
+  onClaimReceived: (utr: string) => void;
+}) {
+  const [utr, setUtr] = React.useState("");
+  const payment = assignment.paymentVerification;
+  const myUtr = isCompany ? payment?.clientUtr : payment?.freelancerUtr;
+  const alreadyClaimed = Boolean(myUtr) && payment?.status !== "mismatch";
+
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-sm text-muted-foreground">
+        Payment status:{" "}
+        <span className="font-medium text-foreground">
+          {(payment?.status ?? "awaiting_client").replace(/_/g, " ")}
+        </span>
+      </p>
+      {payment?.status === "mismatch" && (
+        <p className="text-sm text-destructive">
+          The transaction IDs didn&apos;t match ({payment.mismatchCount} attempt
+          {payment.mismatchCount === 1 ? "" : "s"} so far). Please double-check and re-enter it.
+        </p>
+      )}
+      {alreadyClaimed ? (
+        <p className="text-sm text-muted-foreground">
+          You submitted transaction ID &quot;{myUtr}&quot;. Waiting for the other party.
+        </p>
+      ) : (
+        <form
+          className="flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (isCompany) onClaimPaid(utr);
+            else onClaimReceived(utr);
+          }}
+        >
+          <input
+            required
+            placeholder="Transaction ID / UTR"
+            value={utr}
+            onChange={(e) => setUtr(e.target.value)}
+            className="h-10 flex-1 rounded-lg border border-input bg-transparent px-3 text-sm text-foreground"
+          />
+          <Button type="submit" size="sm" disabled={pending}>
+            {isCompany ? "Mark as Paid" : "Mark as Received"}
+          </Button>
+        </form>
+      )}
+    </div>
   );
 }
 

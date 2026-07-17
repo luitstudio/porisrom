@@ -25,6 +25,41 @@ export type WorkAssignmentStatus =
   | "cancelled"
   | "rejected";
 
+export type DeliverableType =
+  | "demo"
+  | "preview"
+  | "watermarked_file"
+  | "drive_link"
+  | "github_link"
+  | "file";
+
+export type Deliverable = {
+  id: string;
+  workAssignmentId: string;
+  type: DeliverableType;
+  url: string;
+  note: string | null;
+  submittedAt: string;
+};
+
+export type PaymentVerificationStatus =
+  | "awaiting_client"
+  | "awaiting_freelancer"
+  | "mismatch"
+  | "verified";
+
+export type PaymentVerification = {
+  id: string;
+  workAssignmentId: string;
+  clientUtr: string | null;
+  clientClaimedAt: string | null;
+  freelancerUtr: string | null;
+  freelancerClaimedAt: string | null;
+  mismatchCount: number;
+  status: PaymentVerificationStatus;
+  verifiedAt: string | null;
+};
+
 export type WorkAssignment = {
   id: string;
   conversationId: string;
@@ -39,6 +74,8 @@ export type WorkAssignment = {
   createdAt: string;
   updatedAt: string;
   events: WorkAssignmentEvent[];
+  deliverables: Deliverable[];
+  paymentVerification: PaymentVerification | null;
 };
 
 export type WorkAssignmentActionResult = { error?: string; success?: boolean };
@@ -139,6 +176,98 @@ export async function cancelWorkAssignmentAction(
       method: "PATCH",
       accessToken,
       body: { note },
+    });
+  } catch (err) {
+    if (err instanceof BackendApiError) return { error: err.message };
+    return { error: "Something went wrong. Please try again." };
+  }
+  return { success: true };
+}
+
+export type SubmitDeliverableInput = {
+  type: DeliverableType;
+  url: string;
+  note?: string;
+};
+
+export async function submitDeliverableAction(
+  id: string,
+  data: SubmitDeliverableInput
+): Promise<WorkAssignmentActionResult> {
+  try {
+    const accessToken = await requireAccessToken();
+    await backendFetch(`/work-assignments/${id}/deliverables`, {
+      method: "POST",
+      accessToken,
+      body: data,
+    });
+  } catch (err) {
+    if (err instanceof BackendApiError) return { error: err.message };
+    return { error: "Something went wrong. Please try again." };
+  }
+  return { success: true };
+}
+
+export async function acceptDeliveryAction(id: string): Promise<WorkAssignmentActionResult> {
+  try {
+    const accessToken = await requireAccessToken();
+    await backendFetch(`/work-assignments/${id}/delivery/accept`, {
+      method: "PATCH",
+      accessToken,
+    });
+  } catch (err) {
+    if (err instanceof BackendApiError) return { error: err.message };
+    return { error: "Something went wrong. Please try again." };
+  }
+  return { success: true };
+}
+
+export async function requestDeliveryRevisionAction(
+  id: string,
+  note?: string
+): Promise<WorkAssignmentActionResult> {
+  try {
+    const accessToken = await requireAccessToken();
+    await backendFetch(`/work-assignments/${id}/delivery/request-revision`, {
+      method: "PATCH",
+      accessToken,
+      body: { note },
+    });
+  } catch (err) {
+    if (err instanceof BackendApiError) return { error: err.message };
+    return { error: "Something went wrong. Please try again." };
+  }
+  return { success: true };
+}
+
+export async function claimPaidAction(
+  id: string,
+  utr: string
+): Promise<WorkAssignmentActionResult> {
+  try {
+    const accessToken = await requireAccessToken();
+    await backendFetch(`/work-assignments/${id}/payment/claim-paid`, {
+      method: "POST",
+      accessToken,
+      body: { utr },
+    });
+  } catch (err) {
+    if (err instanceof BackendApiError) return { error: err.message };
+    return { error: "Something went wrong. Please try again." };
+  }
+  return { success: true };
+}
+
+export async function claimReceivedAction(
+  id: string,
+  utr: string
+): Promise<WorkAssignmentActionResult> {
+  try {
+    const accessToken = await requireAccessToken();
+    await backendFetch(`/work-assignments/${id}/payment/claim-received`, {
+      method: "POST",
+      accessToken,
+      body: { utr },
     });
   } catch (err) {
     if (err instanceof BackendApiError) return { error: err.message };

@@ -36,7 +36,7 @@ export const authConfig: NextAuthConfig = {
     async jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = user.id as string;
-        token.role = (user.role ?? null) as "freelancer" | "client" | null;
+        token.role = (user.role ?? null) as "freelancer" | "client" | "admin" | null;
         token.isOnboarded = user.isOnboarded as boolean;
         token.accessToken = user.accessToken as string;
         token.refreshToken = user.refreshToken as string;
@@ -45,7 +45,7 @@ export const authConfig: NextAuthConfig = {
 
       if (trigger === "update" && session) {
         const update = session as Partial<{
-          role: "freelancer" | "client" | null;
+          role: "freelancer" | "client" | "admin" | null;
           isOnboarded: boolean;
         }>;
         if (update.role !== undefined) token.role = update.role;
@@ -60,7 +60,7 @@ export const authConfig: NextAuthConfig = {
     },
     async session({ session, token }) {
       session.user.id = token.id as string;
-      session.user.role = token.role as "freelancer" | "client" | null;
+      session.user.role = token.role as "freelancer" | "client" | "admin" | null;
       session.user.isOnboarded = token.isOnboarded as boolean;
       session.accessToken = token.accessToken as string;
       if (token.error) session.error = token.error;

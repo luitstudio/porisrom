@@ -245,7 +245,9 @@ model WorkAssignment {
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
-  events WorkAssignmentEvent[]
+  events              WorkAssignmentEvent[]
+  deliverables        Deliverable[]
+  paymentVerification PaymentVerification?
 }
 
 model WorkAssignmentEvent {
@@ -256,4 +258,43 @@ model WorkAssignmentEvent {
   action           String
   note             String?
   createdAt        DateTime       @default(now())
+}
+
+enum DeliverableType {
+  demo
+  preview
+  watermarked_file
+  drive_link
+  github_link
+  file
+}
+
+model Deliverable {
+  id               String          @id @default(cuid())
+  workAssignmentId String
+  workAssignment   WorkAssignment  @relation(fields: [workAssignmentId], references: [id])
+  type             DeliverableType
+  url              String
+  note             String?
+  submittedAt      DateTime        @default(now())
+}
+
+enum PaymentVerificationStatus {
+  awaiting_client
+  awaiting_freelancer
+  mismatch
+  verified
+}
+
+model PaymentVerification {
+  id                  String                     @id @default(cuid())
+  workAssignmentId    String                     @unique
+  workAssignment      WorkAssignment             @relation(fields: [workAssignmentId], references: [id])
+  clientUtr           String?
+  clientClaimedAt     DateTime?
+  freelancerUtr       String?
+  freelancerClaimedAt DateTime?
+  mismatchCount       Int                        @default(0)
+  status              PaymentVerificationStatus  @default(awaiting_client)
+  verifiedAt          DateTime?
 }
