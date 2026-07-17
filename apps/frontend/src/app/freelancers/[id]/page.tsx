@@ -29,6 +29,14 @@ type FreelancerProfile = {
   portfolioItems: { id: string; title: string; type: string; url: string; description: string | null }[];
 };
 
+type ProfileReview = {
+  id: string;
+  rating: number;
+  comment: string | null;
+  createdAt: string;
+  author: { id: string; name: string };
+};
+
 async function getProfile(id: string): Promise<FreelancerProfile | null> {
   try {
     return await backendFetch<FreelancerProfile>(`/freelancers/${id}`);
@@ -36,6 +44,21 @@ async function getProfile(id: string): Promise<FreelancerProfile | null> {
     if (err instanceof BackendApiError && err.status === 404) return null;
     throw err;
   }
+}
+
+async function getReviews(id: string): Promise<ProfileReview[]> {
+  try {
+    return await backendFetch<ProfileReview[]>(`/freelancers/${id}/reviews`);
+  } catch (err) {
+    if (err instanceof BackendApiError && err.status === 404) return [];
+    throw err;
+  }
+}
+
+// Deterministic, UTC-based — avoids a React hydration mismatch (#418) from
+// toLocaleDateString()'s runtime-dependent locale/timeZone (see work-assignment-panel.tsx).
+function formatDate(iso: string) {
+  return iso.slice(0, 10);
 }
 
 export async function generateMetadata({
@@ -54,7 +77,11 @@ export default async function FreelancerProfilePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [session, profile] = await Promise.all([auth(), getProfile(id)]);
+  const [session, profile, reviews] = await Promise.all([
+    auth(),
+    getProfile(id),
+    getReviews(id),
+  ]);
   if (!profile) notFound();
 
   const isAuthenticated = Boolean(session);
@@ -164,6 +191,26 @@ export default async function FreelancerProfilePage({
                   >
                     {item.title}
                   </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {reviews.length > 0 && (
+          <div className="mt-6">
+            <h2 className="text-sm font-semibold text-foreground">Reviews</h2>
+            <ul className="mt-2 flex flex-col gap-3">
+              {reviews.map((r) => (
+                <li key={r.id} className="rounded-xl border border-border p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-foreground">{r.author.name}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {r.rating}/5 &middot; {formatDate(r.createdAt)}
+                    </span>
+                  </div>
+                  {r.comment && (
+                    <p className="mt-1 text-sm text-muted-foreground">{r.comment}</p>
+                  )}
                 </li>
               ))}
             </ul>

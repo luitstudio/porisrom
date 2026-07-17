@@ -16,6 +16,7 @@ const FULL_INCLUDE = {
   events: { orderBy: { createdAt: "asc" as const } },
   deliverables: { orderBy: { submittedAt: "asc" as const } },
   paymentVerification: true,
+  reviews: true,
 };
 
 const TERMINAL_STATUSES = ["rejected", "cancelled", "completed"];

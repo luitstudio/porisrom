@@ -44,6 +44,7 @@ model User {
   connectionsSent     Connection[] @relation("ConnectionRequester")
   connectionsReceived Connection[] @relation("ConnectionReceiver")
   messages            Message[]
+  reviewsAuthored     Review[]
 }
 
 enum VerificationStatus {
@@ -248,6 +249,7 @@ model WorkAssignment {
   events              WorkAssignmentEvent[]
   deliverables        Deliverable[]
   paymentVerification PaymentVerification?
+  reviews             Review[]
 }
 
 model WorkAssignmentEvent {
@@ -297,4 +299,24 @@ model PaymentVerification {
   mismatchCount       Int                        @default(0)
   status              PaymentVerificationStatus  @default(awaiting_client)
   verifiedAt          DateTime?
+}
+
+enum ReviewDirection {
+  client_to_freelancer
+  freelancer_to_client
+}
+
+model Review {
+  id               String          @id @default(cuid())
+  workAssignmentId String
+  workAssignment   WorkAssignment  @relation(fields: [workAssignmentId], references: [id])
+  authorId         String
+  author           User            @relation(fields: [authorId], references: [id])
+  targetId         String
+  direction        ReviewDirection
+  rating           Int
+  comment          String?
+  createdAt        DateTime        @default(now())
+
+  @@unique([workAssignmentId, direction])
 }

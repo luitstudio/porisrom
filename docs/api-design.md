@@ -94,15 +94,15 @@ Roles column: **F** = Freelancer, **C** = Company/Client, **A** = Admin, **Publi
 
 | Method | Path | Roles | Notes |
 |---|---|---|---|
-| POST | `/work-assignments/:id/reviews` | F/C (participant) | only after status = completed; one per direction |
-| GET | `/freelancers/:id/reviews` | Public | |
-| GET | `/companies/:id/reviews` | Public | |
+| POST | `/work-assignments/:id/reviews` | F/C (participant) | body: `{ rating, comment? }`; only after status = `completed`; one per direction, rejects a duplicate |
+| GET | `/freelancers/:id/reviews` | Public | includes `author: { id, name }` |
+| GET | `/companies/:id/reviews` | Public | includes `author: { id, name }` |
 
 ## Leaderboard
 
 | Method | Path | Roles | Notes |
 |---|---|---|---|
-| GET | `/leaderboard/freelancers` | Public | sorted by ratingAvg, min ratingCount threshold |
+| GET | `/leaderboard/freelancers` | Public | query: `minRatingCount` (default 3); sorted by ratingAvg desc then ratingCount desc; only `verificationStatus: "approved"` profiles |
 | GET | `/leaderboard/companies` | Public | same |
 
 ## Notifications

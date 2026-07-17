@@ -43,6 +43,21 @@ const NAV_ENTRIES: NavEntry[] = [
   { label: "Find Freelancers", href: "/freelancers" },
   { label: "Find Companies", href: "/companies" },
   {
+    label: "Leaderboard",
+    items: [
+      {
+        label: "Top Freelancers",
+        href: "/leaderboard/freelancers",
+        description: "Highest-rated freelancers on Porisrom",
+      },
+      {
+        label: "Top Companies",
+        href: "/leaderboard/companies",
+        description: "Highest-rated companies on Porisrom",
+      },
+    ],
+  },
+  {
     label: "Categories",
     items: [
       {

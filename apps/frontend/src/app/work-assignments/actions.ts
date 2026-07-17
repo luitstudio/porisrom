@@ -60,6 +60,19 @@ export type PaymentVerification = {
   verifiedAt: string | null;
 };
 
+export type ReviewDirection = "client_to_freelancer" | "freelancer_to_client";
+
+export type Review = {
+  id: string;
+  workAssignmentId: string;
+  authorId: string;
+  targetId: string;
+  direction: ReviewDirection;
+  rating: number;
+  comment: string | null;
+  createdAt: string;
+};
+
 export type WorkAssignment = {
   id: string;
   conversationId: string;
@@ -76,6 +89,7 @@ export type WorkAssignment = {
   events: WorkAssignmentEvent[];
   deliverables: Deliverable[];
   paymentVerification: PaymentVerification | null;
+  reviews: Review[];
 };
 
 export type WorkAssignmentActionResult = { error?: string; success?: boolean };
@@ -268,6 +282,25 @@ export async function claimReceivedAction(
       method: "POST",
       accessToken,
       body: { utr },
+    });
+  } catch (err) {
+    if (err instanceof BackendApiError) return { error: err.message };
+    return { error: "Something went wrong. Please try again." };
+  }
+  return { success: true };
+}
+
+export async function createReviewAction(
+  id: string,
+  rating: number,
+  comment?: string
+): Promise<WorkAssignmentActionResult> {
+  try {
+    const accessToken = await requireAccessToken();
+    await backendFetch(`/work-assignments/${id}/reviews`, {
+      method: "POST",
+      accessToken,
+      body: { rating, comment },
     });
   } catch (err) {
     if (err instanceof BackendApiError) return { error: err.message };

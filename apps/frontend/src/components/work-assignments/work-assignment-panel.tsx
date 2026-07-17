@@ -7,6 +7,7 @@ import {
   cancelWorkAssignmentAction,
   claimPaidAction,
   claimReceivedAction,
+  createReviewAction,
   createWorkAssignmentAction,
   listWorkAssignmentsAction,
   requestDeliveryRevisionAction,
@@ -151,12 +152,23 @@ export function WorkAssignmentPanel({
       {!active || TERMINAL_STATUSES.has(active.status) ? (
         <div className="mt-2">
           {active && active.status === "completed" ? (
-            <p className="text-sm text-foreground">
-              &quot;{active.title}&quot; is complete — payment verified
-              {active.paymentVerification?.verifiedAt &&
-                ` on ${formatDate(active.paymentVerification.verifiedAt)}`}
-              .
-            </p>
+            <div>
+              <p className="text-sm text-foreground">
+                &quot;{active.title}&quot; is complete — payment verified
+                {active.paymentVerification?.verifiedAt &&
+                  ` on ${formatDate(active.paymentVerification.verifiedAt)}`}
+                .
+              </p>
+              <ReviewSection
+                assignment={active}
+                viewerUserId={viewerUserId}
+                otherPartyName={otherPartyName}
+                pending={pending}
+                onSubmit={(rating, comment) =>
+                  runAction(() => createReviewAction(active.id, rating, comment))
+                }
+              />
+            </div>
           ) : (
             active && (
               <p className="text-sm text-muted-foreground">
@@ -680,6 +692,66 @@ function PaymentSection({
         </form>
       )}
     </div>
+  );
+}
+
+function ReviewSection({
+  assignment,
+  viewerUserId,
+  otherPartyName,
+  pending,
+  onSubmit,
+}: {
+  assignment: WorkAssignment;
+  viewerUserId: string;
+  otherPartyName: string;
+  pending: boolean;
+  onSubmit: (rating: number, comment?: string) => void;
+}) {
+  const [rating, setRating] = React.useState(5);
+  const [comment, setComment] = React.useState("");
+
+  const myReview = assignment.reviews.find((r) => r.authorId === viewerUserId);
+  if (myReview) {
+    return (
+      <p className="mt-2 text-sm text-muted-foreground">
+        You rated {otherPartyName} {myReview.rating}/5.
+        {myReview.comment && <span> &quot;{myReview.comment}&quot;</span>}
+      </p>
+    );
+  }
+
+  return (
+    <form
+      className="mt-3 flex flex-col gap-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSubmit(rating, comment || undefined);
+      }}
+    >
+      <p className="text-sm font-medium text-foreground">Rate {otherPartyName}</p>
+      <select
+        value={rating}
+        onChange={(e) => setRating(Number(e.target.value))}
+        className="h-10 w-32 rounded-lg border border-input bg-transparent px-3 text-sm text-foreground"
+      >
+        {[5, 4, 3, 2, 1].map((n) => (
+          <option key={n} value={n}>
+            {n} / 5
+          </option>
+        ))}
+      </select>
+      <textarea
+        placeholder="Comment (optional)"
+        value={comment}
+        onChange={(e) => setComment(e.target.value)}
+        rows={2}
+        className="rounded-lg border border-input bg-transparent px-3 py-2 text-sm text-foreground"
+      />
+      <Button type="submit" size="sm" className="self-start" disabled={pending}>
+        Submit Review
+      </Button>
+    </form>
   );
 }
 

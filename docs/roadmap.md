@@ -119,13 +119,13 @@ Bug found and fixed during verification: the mismatch counter incremented **twic
 
 ---
 
-## Phase 8 — Reviews & reputation
+## Phase 8 — Reviews & reputation ✅ done
 
-- [ ] `Review` model + `/work-assignments/:id/reviews` endpoint (one per direction, only post-completion)
-- [ ] Rating aggregation (`ratingAvg`/`ratingCount` recompute on new review)
-- [ ] `/leaderboard/freelancers` and `/leaderboard/companies` endpoints (min ratingCount threshold)
-- [ ] Frontend: review submission UI, public review display on profiles, leaderboard pages
-- [ ] Manual test plan: complete an assignment, both sides review each other, ratings reflect on both profiles and leaderboard ordering updates
+- [x] `Review` model + `/work-assignments/:id/reviews` endpoint (one per direction via `@@unique([workAssignmentId, direction])`, only post-completion). Added a proper `author` relation on `Review` (unlike `WorkAssignmentEvent.actorId`, which stays a bare string resolved client-side against the two known conversation participants) — a profile's reviews come from many different authors, so the name has to be resolved server-side via a real join
+- [x] Rating aggregation (`ratingAvg`/`ratingCount` recompute via `prisma.review.aggregate` on every new review, scoped per direction so a freelancer's rating only counts `client_to_freelancer` reviews and vice versa)
+- [x] `/leaderboard/freelancers` and `/leaderboard/companies` endpoints (default `minRatingCount=3`, overridable via query param; only `verificationStatus: "approved"` profiles are eligible)
+- [x] Frontend: review submission UI built into the same `WorkAssignmentPanel`'s `completed` branch (shows a 1–5 + comment form once, then "You rated X" afterward), public review display added to both profile pages, and new `/leaderboard/freelancers` + `/leaderboard/companies` pages linked from a new navbar "Leaderboard" dropdown
+- [x] Manual test plan: verified via curl (both sides review a completed assignment, duplicate-review rejection, review-on-non-completed rejection, non-participant rejection, rating averaging across multiple reviews, leaderboard threshold filtering both default and overridden) and a real two-browser-context session — including submitting a review through the actual UI form, not just curl — confirming the leaderboard, profile rating summary, and public review list all update correctly
 
 ---
 
