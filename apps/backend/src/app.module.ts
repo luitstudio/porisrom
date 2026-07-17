@@ -4,6 +4,8 @@ import { ConfigModule } from "@nestjs/config";
 import { AdminModule } from "./admin/admin.module";
 import { AuthModule } from "./auth/auth.module";
 import { CatalogModule } from "./catalog/catalog.module";
+import { ConnectionsModule } from "./connections/connections.module";
+import { ConversationsModule } from "./conversations/conversations.module";
 import { HealthController } from "./health/health.controller";
 import { PrismaModule } from "./prisma/prisma.module";
 import { ProfilesModule } from "./profiles/profiles.module";
@@ -18,6 +20,8 @@ import { SearchModule } from "./search/search.module";
     ProfilesModule,
     AdminModule,
     SearchModule,
+    ConnectionsModule,
+    ConversationsModule,
   ],
   controllers: [HealthController],
 })

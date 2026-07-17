@@ -19,6 +19,12 @@ export default async function ClientDashboardLayout({
             Porisrom
           </Link>
           <div className="flex items-center gap-4">
+            <Link
+              href="/dashboard/client/messages"
+              className="text-sm font-medium text-muted-foreground hover:text-foreground"
+            >
+              Messages
+            </Link>
             <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-foreground">
               {roleLabel}
             </span>

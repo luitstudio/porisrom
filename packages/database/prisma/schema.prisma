@@ -40,6 +40,10 @@ model User {
 
   freelancerProfile FreelancerProfile?
   companyProfile    CompanyProfile?
+
+  connectionsSent     Connection[] @relation("ConnectionRequester")
+  connectionsReceived Connection[] @relation("ConnectionReceiver")
+  messages            Message[]
 }
 
 enum VerificationStatus {
@@ -160,4 +164,45 @@ model AdminActionLog {
   action       String
   metadata     Json?
   createdAt    DateTime @default(now())
+}
+
+enum ConnectionStatus {
+  pending
+  accepted
+  declined
+}
+
+model Connection {
+  id          String           @id @default(cuid())
+  requesterId String
+  receiverId  String
+  requester   User             @relation("ConnectionRequester", fields: [requesterId], references: [id])
+  receiver    User             @relation("ConnectionReceiver", fields: [receiverId], references: [id])
+  status      ConnectionStatus @default(pending)
+  createdAt   DateTime         @default(now())
+  respondedAt DateTime?
+
+  conversation Conversation?
+
+  @@unique([requesterId, receiverId])
+}
+
+model Conversation {
+  id           String     @id @default(cuid())
+  connectionId String     @unique
+  connection   Connection @relation(fields: [connectionId], references: [id])
+  createdAt    DateTime   @default(now())
+
+  messages Message[]
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  senderId       String
+  sender         User         @relation(fields: [senderId], references: [id])
+  body           String
+  createdAt      DateTime     @default(now())
+  readAt         DateTime?
 }

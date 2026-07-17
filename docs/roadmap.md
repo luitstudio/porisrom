@@ -81,14 +81,14 @@ Known gap carried over from Phase 3: the client onboarding UI's category picker 
 
 ---
 
-## Phase 5 — Connections & messaging
+## Phase 5 — Connections & messaging ✅ done
 
-- [ ] `Connection` model + `/connections` endpoints (send/accept/decline), same-role rejection, 14-day re-request cooldown after decline
-- [ ] `Conversation` + `Message` models, created on connection acceptance
-- [ ] `/conversations` + `/conversations/:id/messages` endpoints (participant-only access check)
-- [ ] Frontend: connection request UI (send/accept/decline) on profile pages
-- [ ] Frontend: chat UI (poll-based refresh, no websockets yet)
-- [ ] Manual test plan: freelancer requests connection with company, company accepts, both can message; freelancer cannot message another freelancer (rejected at API level)
+- [x] `Connection` model + `/connections` endpoints (send/accept/decline), same-role rejection, 14-day re-request cooldown after decline. Cooldown only applies if the *same* person retries — the other party initiating fresh is allowed immediately. A declined connection is reused (updated back to `pending`) rather than creating a duplicate row, since `@@unique([requesterId, receiverId])` only covers one direction of a pair
+- [x] `Conversation` + `Message` models, created transactionally on connection acceptance (conversation created first, then the connection update, so the returned `connection.conversation` include isn't null)
+- [x] `/conversations` + `/conversations/:id/messages` endpoints (participant-only access check via the underlying connection's requester/receiver ids)
+- [x] Frontend: connection request UI (send/accept/decline) on profile pages, via a shared `ConnectionActionPanel` client component — shown on `/freelancers/[id]` only to logged-in Clients, and on `/companies/[id]` only to logged-in Freelancers
+- [x] Frontend: chat UI (poll-based refresh every 4s, no websockets) at `/dashboard/freelancer/messages(/[id])` and the newly-added `/dashboard/client/messages(/[id])` (client dashboard had no messaging surface before this phase — added a "Messages" link to its header)
+- [x] Manual test plan: verified via curl (same-role rejection, valid request, accept, bidirectional messaging, non-participant 403, decline, cooldown block, duplicate-connection conflict) and then the full user-facing flow in a real two-context browser session (Priya↔Acme: connect → accept → message both ways → confirmed the already-open thread on one side picks up the other's reply via polling with no reload), zero errors
 
 ---
 

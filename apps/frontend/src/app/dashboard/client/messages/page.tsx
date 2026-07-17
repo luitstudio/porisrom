@@ -4,21 +4,21 @@ import { auth } from "@/auth";
 import { listConversationsAction } from "@/app/messages/actions";
 import { ConversationsList } from "@/components/messages/conversations-list";
 
-export default async function FreelancerMessagesPage() {
+export default async function ClientMessagesPage() {
   const session = await auth();
   if (!session) redirect("/auth/login");
 
   const conversations = await listConversationsAction();
 
   return (
-    <div className="flex flex-col gap-6 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
+    <div className="flex flex-col gap-6">
       <h1 className="font-display text-2xl font-semibold text-foreground sm:text-3xl">
         Messages
       </h1>
       <ConversationsList
         conversations={conversations}
         viewerUserId={session.user.id}
-        basePath="/dashboard/freelancer/messages"
+        basePath="/dashboard/client/messages"
       />
     </div>
   );

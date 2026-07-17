@@ -4,11 +4,16 @@ import type { Metadata } from "next";
 
 import { auth } from "@/auth";
 import { BackendApiError, backendFetch } from "@/lib/backend-api";
+import {
+  ConnectionActionPanel,
+  type ConnectionSummary,
+} from "@/components/connections/connection-action-panel";
 import { Footer } from "@/components/layout/footer";
 import { Navbar } from "@/components/layout/navbar";
 
 type CompanyProfile = {
   id: string;
+  userId: string;
   companyName: string;
   about: string | null;
   address: string | null;
@@ -50,6 +55,25 @@ export default async function CompanyProfilePage({
 
   const isAuthenticated = Boolean(session);
 
+  // Only a logged-in Freelancer can connect with a Company — fetch the viewer's
+  // connections to find any existing relationship with this profile's owner.
+  let connection: ConnectionSummary | null = null;
+  if (
+    session?.accessToken &&
+    session.user.role === "freelancer" &&
+    session.user.id !== profile.userId
+  ) {
+    const myConnections = await backendFetch<ConnectionSummary[]>("/connections", {
+      accessToken: session.accessToken,
+    });
+    connection =
+      myConnections.find(
+        (c) =>
+          (c.requesterId === session.user.id && c.receiverId === profile.userId) ||
+          (c.requesterId === profile.userId && c.receiverId === session.user.id)
+      ) ?? null;
+  }
+
   return (
     <div className="flex flex-1 flex-col">
       <Navbar isAuthenticated={isAuthenticated} />
@@ -70,6 +94,16 @@ export default async function CompanyProfilePage({
           )}
         </div>
         {profile.state && <p className="mt-1 text-sm text-muted-foreground">{profile.state}</p>}
+
+        {session?.user.role === "freelancer" && (
+          <ConnectionActionPanel
+            viewerUserId={session.user.id}
+            profileUserId={profile.userId}
+            connection={connection}
+            currentPath={`/companies/${profile.id}`}
+            messagesBasePath="/dashboard/freelancer/messages"
+          />
+        )}
 
         <p className="mt-4 text-sm text-muted-foreground">
           Rating: {profile.ratingCount > 0 ? `${profile.ratingAvg.toFixed(1)} (${profile.ratingCount})` : "No reviews yet"}

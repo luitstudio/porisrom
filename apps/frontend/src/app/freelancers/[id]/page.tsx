@@ -4,11 +4,16 @@ import type { Metadata } from "next";
 
 import { auth } from "@/auth";
 import { BackendApiError, backendFetch } from "@/lib/backend-api";
+import {
+  ConnectionActionPanel,
+  type ConnectionSummary,
+} from "@/components/connections/connection-action-panel";
 import { Footer } from "@/components/layout/footer";
 import { Navbar } from "@/components/layout/navbar";
 
 type FreelancerProfile = {
   id: string;
+  userId: string;
   bio: string | null;
   address: string | null;
   state: string | null;
@@ -55,6 +60,21 @@ export default async function FreelancerProfilePage({
   const isAuthenticated = Boolean(session);
   const location = [profile.district, profile.state].filter(Boolean).join(", ");
 
+  // Only a logged-in Client can connect with a Freelancer — fetch the viewer's
+  // connections to find any existing relationship with this profile's owner.
+  let connection: ConnectionSummary | null = null;
+  if (session?.accessToken && session.user.role === "client" && session.user.id !== profile.userId) {
+    const myConnections = await backendFetch<ConnectionSummary[]>("/connections", {
+      accessToken: session.accessToken,
+    });
+    connection =
+      myConnections.find(
+        (c) =>
+          (c.requesterId === session.user.id && c.receiverId === profile.userId) ||
+          (c.requesterId === profile.userId && c.receiverId === session.user.id)
+      ) ?? null;
+  }
+
   return (
     <div className="flex flex-1 flex-col">
       <Navbar isAuthenticated={isAuthenticated} />
@@ -75,6 +95,16 @@ export default async function FreelancerProfilePage({
           )}
         </div>
         {location && <p className="mt-1 text-sm text-muted-foreground">{location}</p>}
+
+        {session?.user.role === "client" && (
+          <ConnectionActionPanel
+            viewerUserId={session.user.id}
+            profileUserId={profile.userId}
+            connection={connection}
+            currentPath={`/freelancers/${profile.id}`}
+            messagesBasePath="/dashboard/client/messages"
+          />
+        )}
 
         <div className="mt-4 flex flex-wrap gap-4 text-sm text-muted-foreground">
           {profile.experienceLevel && <span>Experience: {profile.experienceLevel}</span>}
