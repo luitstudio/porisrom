@@ -92,15 +92,17 @@ Known gap carried over from Phase 3: the client onboarding UI's category picker 
 
 ---
 
-## Phase 6 — Work assignments
+## Phase 6 — Work assignments ✅ done
 
-- [ ] `WorkAssignment` + `WorkAssignmentEvent` models + full status state machine per data-model.md
-- [ ] `/conversations/:id/work-assignments` create (Company only)
-- [ ] `/work-assignments/:id/respond` (Freelancer: accept/reject/request-modification)
-- [ ] `/work-assignments/:id/revise` (Company revises after modification request)
-- [ ] `/work-assignments/:id/cancel` (mutual-confirm flow)
-- [ ] Frontend: create-assignment UI inside chat (Company), respond UI (Freelancer), activity timeline rendering from `WorkAssignmentEvent`
-- [ ] Manual test plan: full negotiation loop — propose, request modification, revise, accept — verify event log records every step
+- [x] `WorkAssignment` + `WorkAssignmentEvent` models + the negotiation-phase slice of the status state machine (`proposed` ↔ `modification_requested` → `accepted` | `rejected` | `cancelled`; `in_progress` onward is Phase 7's territory, kept in the enum now so the column isn't reshaped twice). Added `cancelRequestedById` (not in the original data-model.md sketch) to actually implement the documented mutual-confirm cancellation — the other participant's confirming call is what flips status to `cancelled`
+- [x] `/conversations/:id/work-assignments` create (Company only) + a symmetric `GET` to list a conversation's assignments (needed by the frontend panel, natural REST addition alongside the existing `POST`)
+- [x] `/work-assignments/:id/respond` (Freelancer: accept/reject/request-modification)
+- [x] `/work-assignments/:id/revise` (Company revises-and-resends → back to `proposed`, or rejects outright after a modification request)
+- [x] `/work-assignments/:id/cancel` (mutual-confirm: first call records `cancelRequestedById`, the other participant's call confirms and cancels; calling twice as the same person is rejected)
+- [x] Frontend: a single `WorkAssignmentPanel` client component embedded directly above the chat thread (poll-based, 6s) — Company sees "Propose Work Assignment" / revise form, Freelancer sees accept/reject/request-modification, either side sees the cancel flow once accepted, plus a collapsible activity timeline built from every assignment's `WorkAssignmentEvent`s
+- [x] Manual test plan: full negotiation loop verified twice — once via curl (propose → freelancer requests modification → company revises → freelancer accepts, plus a separate mutual-cancel test with the "can't confirm your own request" guard) and once end-to-end in a real two-browser-context session, confirming the UI transitions correctly at every step and the timeline records all of it
+
+Bug found and fixed during verification: a React hydration mismatch (#418) from `toLocaleDateString()`/`toLocaleString()` calls with no explicit locale/timeZone — these use the runtime's defaults, which differ between the Node server (SSR) and the browser (hydration). Replaced with deterministic UTC-based formatting.
 
 ---
 

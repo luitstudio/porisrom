@@ -66,11 +66,12 @@ Roles column: **F** = Freelancer, **C** = Company/Client, **A** = Admin, **Publi
 
 | Method | Path | Roles | Notes |
 |---|---|---|---|
-| POST | `/conversations/:id/work-assignments` | C | create (status: proposed) |
+| POST | `/conversations/:id/work-assignments` | C | create (status: proposed); body: title, description, budgetAmount, currency?, dueDate? |
+| GET | `/conversations/:id/work-assignments` | F/C (participant) | list all assignments ever created on this conversation, each with its event timeline |
 | GET | `/work-assignments/:id` | F/C (participant) | includes event timeline |
-| PATCH | `/work-assignments/:id/respond` | F | body: accept / reject / request_modification (+ proposed changes) |
-| PATCH | `/work-assignments/:id/revise` | C | company revises terms after a modification request |
-| PATCH | `/work-assignments/:id/cancel` | F/C | proposes cancellation; counterpart must confirm via same endpoint, or admin arbitrates |
+| PATCH | `/work-assignments/:id/respond` | F | body: `{ action: accept \| reject \| request_modification, note? }`; only valid while status is `proposed` |
+| PATCH | `/work-assignments/:id/revise` | C | body: `{ action: revise \| reject, title?, description?, budgetAmount?, dueDate?, note? }`; only valid while status is `modification_requested`; `revise` sends it back to `proposed` |
+| PATCH | `/work-assignments/:id/cancel` | F/C | body: `{ note? }`; first call records the requester, status stays put; the other participant's call confirms and sets status to `cancelled`; calling it again as the same person who already requested is rejected |
 
 ## Deliverables & delivery review
 

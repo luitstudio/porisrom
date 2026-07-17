@@ -10,6 +10,7 @@ import { HealthController } from "./health/health.controller";
 import { PrismaModule } from "./prisma/prisma.module";
 import { ProfilesModule } from "./profiles/profiles.module";
 import { SearchModule } from "./search/search.module";
+import { WorkAssignmentsModule } from "./work-assignments/work-assignments.module";
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { SearchModule } from "./search/search.module";
     SearchModule,
     ConnectionsModule,
     ConversationsModule,
+    WorkAssignmentsModule,
   ],
   controllers: [HealthController],
 })
