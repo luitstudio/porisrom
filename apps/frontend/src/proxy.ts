@@ -6,7 +6,9 @@ import { authConfig } from "@/auth.config";
 const { auth } = NextAuth(authConfig);
 
 function dashboardPathFor(role: "freelancer" | "client" | "admin" | null) {
-  if (role === "admin") return "/admin/payments";
+  // Admins have no workflow inside apps/frontend — the real admin console is
+  // the separate apps/admin app (Phase 9), so just send them to the homepage.
+  if (role === "admin") return "/";
   return role === "freelancer" ? "/dashboard/freelancer" : "/dashboard/client";
 }
 

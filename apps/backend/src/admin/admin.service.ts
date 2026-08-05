@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import type { Role } from "@porishrom/database";
 
 import { PrismaService } from "../prisma/prisma.service";
@@ -36,6 +36,128 @@ export class AdminService {
       return this.prisma.db.companyProfile.update({ where: { userId }, data: { isBadgeVerified } });
     }
     throw new NotFoundException("User has no profile to badge");
+  }
+
+  async setBlocked(userId: string, blocked: boolean) {
+    const user = await this.prisma.db.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException("User not found");
+    }
+    if (user.status === "deleted") {
+      throw new ConflictException("Cannot change block state of a deleted user");
+    }
+    return this.prisma.db.user.update({
+      where: { id: userId },
+      data: { status: blocked ? "blocked" : "active" },
+    });
+  }
+
+  async softDeleteUser(userId: string) {
+    const user = await this.prisma.db.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException("User not found");
+    }
+    return this.prisma.db.user.update({
+      where: { id: userId },
+      data: {
+        status: "deleted",
+        name: "Deleted User",
+        email: `deleted-${userId}@porishrom.invalid`,
+      },
+    });
+  }
+
+  listConversations() {
+    return this.prisma.db.conversation.findMany({
+      include: {
+        connection: {
+          select: {
+            status: true,
+            requester: { select: { id: true, name: true, role: true } },
+            receiver: { select: { id: true, name: true, role: true } },
+          },
+        },
+        _count: { select: { messages: true, workAssignments: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+  }
+
+  listWorkAssignments() {
+    return this.prisma.db.workAssignment.findMany({
+      include: {
+        conversation: {
+          select: {
+            connection: {
+              select: {
+                requester: { select: { id: true, name: true } },
+                receiver: { select: { id: true, name: true } },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { updatedAt: "desc" },
+    });
+  }
+
+  async broadcastNotification(adminId: string, type: string, message: string) {
+    return this.prisma.db.notification.create({
+      data: { userId: null, type, message, createdBy: adminId },
+    });
+  }
+
+  async sendDirectMessage(adminId: string, targetUserId: string, message: string) {
+    const user = await this.prisma.db.user.findUnique({ where: { id: targetUserId } });
+    if (!user) {
+      throw new NotFoundException("User not found");
+    }
+    return this.prisma.db.notification.create({
+      data: { userId: targetUserId, type: "admin_direct_message", message, createdBy: adminId },
+    });
+  }
+
+  async getAnalytics() {
+    const since = new Date();
+    since.setDate(since.getDate() - 30);
+
+    const [
+      signupsByDay,
+      activeAssignments,
+      totalAssignments,
+      verifiedPayments,
+      totalPayments,
+      usersByRole,
+    ] = await Promise.all([
+      this.prisma.db.$queryRaw<{ day: Date; count: bigint }[]>`
+        SELECT date_trunc('day', "createdAt") AS day, COUNT(*) AS count
+        FROM "User"
+        WHERE "createdAt" >= ${since}
+        GROUP BY day
+        ORDER BY day ASC
+      `,
+      this.prisma.db.workAssignment.count({
+        where: {
+          status: {
+            in: ["proposed", "modification_requested", "accepted", "in_progress", "submitted", "revision_requested", "delivery_accepted", "payment_pending"],
+          },
+        },
+      }),
+      this.prisma.db.workAssignment.count(),
+      this.prisma.db.paymentVerification.count({ where: { status: "verified" } }),
+      this.prisma.db.paymentVerification.count(),
+      this.prisma.db.user.groupBy({ by: ["role"], _count: { _all: true } }),
+    ]);
+
+    return {
+      signupsByDay: signupsByDay.map((row) => ({ day: row.day, count: Number(row.count) })),
+      activeAssignments,
+      totalAssignments,
+      paymentVerificationRate: totalPayments === 0 ? 0 : verifiedPayments / totalPayments,
+      verifiedPayments,
+      totalPayments,
+      usersByRole: usersByRole.map((row) => ({ role: row.role, count: row._count._all })),
+    };
   }
 
   listActionLog() {

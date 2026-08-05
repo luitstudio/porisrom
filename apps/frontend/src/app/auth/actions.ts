@@ -23,7 +23,10 @@ const loginSchema = z.object({
   password: z.string().min(1, "Enter your password."),
 });
 
-function dashboardPathFor(role: "freelancer" | "client" | null) {
+function dashboardPathFor(role: "freelancer" | "client" | "admin" | null) {
+  // Admins have no workflow inside apps/frontend — the real admin console is
+  // the separate apps/admin app (Phase 9), so just send them to the homepage.
+  if (role === "admin") return "/";
   return role === "freelancer" ? "/dashboard/freelancer" : "/dashboard/client";
 }
 
@@ -90,9 +93,7 @@ export async function loginAction(
     const result = await backendFetch<{
       user: { role: "freelancer" | "client" | "admin" | null; isOnboarded: boolean };
     }>("/auth/login", { method: "POST", body: { email, password } });
-    target = result.user.isOnboarded
-      ? dashboardPathFor(result.user.role === "admin" ? null : result.user.role)
-      : "/onboarding";
+    target = result.user.isOnboarded ? dashboardPathFor(result.user.role) : "/onboarding";
   } catch (error) {
     if (error instanceof BackendApiError && error.status === 401) {
       return { error: "Invalid email or password." };

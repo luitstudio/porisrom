@@ -132,9 +132,10 @@ Roles column: **F** = Freelancer, **C** = Company/Client, **A** = Admin, **Publi
 | GET | `/admin/conversations` | A | oversight, read-only |
 | GET | `/admin/work-assignments` | A | oversight, read-only |
 | GET | `/admin/payments` | A | oversight, includes mismatch/disputed flagged items |
-| POST | `/admin/notifications/broadcast` | A | to all users |
-| POST | `/admin/messages/direct` | A | direct message to any user |
-| GET | `/admin/action-log` | A | audit trail of admin actions |
+| GET | `/admin/analytics` | A | signups/day (last 30d), active/total work assignment counts, payment verification rate, users-by-role breakdown |
+| POST | `/admin/notifications/broadcast` | A | body: `{ type, message }`; to all users |
+| POST | `/admin/messages/direct` | A | body: `{ userId, message }`; direct message to any user, delivered as a targeted `Notification` |
+| GET | `/admin/action-log` | A | audit trail of admin actions, `metadata` captures the request body |
 
 ---
 

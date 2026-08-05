@@ -320,3 +320,18 @@ model Review {
 
   @@unique([workAssignmentId, direction])
 }
+
+// userId null = broadcast to all users. Broadcast read-state is a known MVP
+// simplification: isRead is a single shared flag on the row, so marking a
+// broadcast read affects how it displays for every recipient, not just the
+// caller. Acceptable here since this is an admin communication aside, not a
+// core workflow; a proper per-user read join table would be the real fix.
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String?
+  type      String
+  message   String
+  isRead    Boolean  @default(false)
+  createdBy String?
+  createdAt DateTime @default(now())
+}

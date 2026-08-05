@@ -129,18 +129,22 @@ Bug found and fixed during verification: the mismatch counter incremented **twic
 
 ---
 
-## Phase 9 — `apps/admin` build-out
+## Phase 9 — `apps/admin` build-out ✅ done
 
 Goal: admin stops being "just API calls via Postman" and gets a real internal tool.
 
-- [ ] Scaffold Next.js app in `apps/admin`
-- [ ] Admin auth (reuses backend `/auth/*`, admin role only)
-- [ ] User management view (approve/reject/badge/block/delete, filters by role/status)
-- [ ] Conversation/work-assignment/payment oversight views (read-only, flagged items surfaced)
-- [ ] Broadcast notification composer, direct-message-to-user tool
-- [ ] `AdminActionLog` viewer (audit trail)
-- [ ] Basic analytics (signups over time, active assignments, payment verification rate)
-- [ ] Manual test plan: admin reviews a pending profile end-to-end without touching the database or backend directly
+- [x] `Notification` model (`userId: null` = broadcast to all; known MVP simplification — broadcast read-state is a single shared flag, not per-user, since this is an admin communication aside rather than a core workflow) + `GET /notifications` / `PATCH /notifications/:id/read` for any authenticated user
+- [x] Admin backend additions: `PATCH /admin/users/:id/block` (toggle, blocks login via the existing `status !== "active"` check), `DELETE /admin/users/:id` (soft-delete — anonymizes name/email, deactivates login, keeps the row and its historical relations intact; blocked from being re-blocked once deleted), `GET /admin/conversations` and `GET /admin/work-assignments` (read-only oversight lists), `POST /admin/notifications/broadcast`, `POST /admin/messages/direct` (delivered as a targeted `Notification`, not a real Connection-gated message thread), `GET /admin/analytics` (signups/day over 30 days via raw `date_trunc` query, active/total assignment counts, payment verification rate, users-by-role breakdown). `AdminActionLogInterceptor` extended to also capture request-body metadata and fall back to `body.userId` as the target when there's no `:id` route param (needed for the direct-message action)
+- [x] Scaffold Next.js app in `apps/admin` (port 3001) — deliberately simpler stack than `apps/frontend`: plain Tailwind (no shadcn/Base UI/Framer Motion), no NextAuth
+- [x] Admin auth: server actions call the backend's `/auth/login` and `/auth/refresh` directly and store tokens in httpOnly cookies (`admin_access_token` / `admin_refresh_token`, distinct names from `apps/frontend`'s NextAuth cookies since browsers scope cookies by domain, not port). `getSession()` validates via `/auth/me` and refreshes once on 401; non-admin roles are rejected at login. Single role, no onboarding, so this intentionally skips the BFF/session-hook machinery `apps/frontend` needed
+- [x] User management view: filter by role, approve/reject/badge/block/delete actions per row, disabled once a user is soft-deleted
+- [x] Conversation/work-assignment/payment oversight views (read-only; disputed work assignments and mismatch/disputed payments visually flagged)
+- [x] Broadcast notification composer, direct-message-to-user tool (recipient picker sourced from `/admin/users`), plus a "recently sent" list reusing the action log
+- [x] `AdminActionLog` viewer (audit trail, including captured metadata)
+- [x] Basic analytics dashboard (signups-over-time bar chart, active/total assignments, payment verification rate, users-by-role)
+- [x] Removed the `apps/frontend` `/admin/payments` stopgap page now that `apps/admin` supersedes it; admins landing in `apps/frontend` (both the immediate post-login redirect in `auth/actions.ts` and `proxy.ts`'s dashboard-redirect-for-authenticated-user-visiting-/auth/*) now go to the homepage, since there's no admin workflow left inside that app
+- [x] Manual test plan: verified via curl (block/unblock/login-rejection-while-blocked, soft-delete/login-rejection-after-delete/re-block-conflict, broadcast + direct message + notification visibility + mark-read, analytics, action-log metadata capture) and a real Playwright browser session driving `apps/admin` end-to-end — non-admin login rejection, admin login, dashboard analytics, users page reject→approve→badge-grant→block/unblock cycle, conversations/work-assignments/payments oversight pages, notification broadcast + direct message with visible confirmation, action log, and logout redirect gating (19/19 checks passed, zero console/HTTP errors)
+- Bug found and fixed (pre-existing, surfaced by this phase's redirect changes): `apps/frontend`'s `auth/actions.ts` had its own separate `dashboardPathFor` left over from Phase 3 (before the admin role type was widened) that mapped `admin → null → "/dashboard/client"` as the *immediate* post-login redirect, independently of `proxy.ts`'s already-correct version — so an admin logging into `apps/frontend` landed on the client dashboard instead of anywhere sensible. Fixed by widening it the same way and pointing it at the homepage
 
 ---
 

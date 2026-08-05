@@ -20,13 +20,15 @@ export class AdminActionLogInterceptor implements NestInterceptor {
 
     const request = context.switchToHttp().getRequest();
     const adminId: string | undefined = request.user?.userId;
-    const targetUserId: string | undefined = request.params?.id;
+    const targetUserId: string | undefined = request.params?.id ?? request.body?.userId;
+    const metadata =
+      request.body && Object.keys(request.body).length > 0 ? request.body : undefined;
 
     return next.handle().pipe(
       tap(() => {
         if (!adminId) return;
         this.prisma.db.adminActionLog
-          .create({ data: { adminId, targetUserId, action } })
+          .create({ data: { adminId, targetUserId, action, metadata } })
           .catch((err) => {
             // eslint-disable-next-line no-console
             console.error("Failed to write admin action log", err);
