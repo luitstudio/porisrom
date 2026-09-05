@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 import { auth } from "@/auth";
+import { DiscoveryUnavailable } from "@/components/common/discovery-unavailable";
 import { Footer } from "@/components/layout/footer";
 import { Navbar } from "@/components/layout/navbar";
 import { backendFetch } from "@/lib/backend-api";
@@ -53,7 +54,7 @@ export default async function CompaniesPage({
 
   const [session, categories, result] = await Promise.all([
     auth(),
-    backendFetch<Category[]>("/categories"),
+    backendFetch<Category[]>("/categories").catch(() => null),
     backendFetch<SearchResult>(
       `/search/companies?${buildQueryString({
         categoryId,
@@ -62,11 +63,19 @@ export default async function CompaniesPage({
         page: String(page),
         pageSize: "12",
       })}`
-    ),
+    ).catch(() => null),
   ]);
 
+  if (!categories || !result) {
+    return <DiscoveryUnavailable title="Find Companies" isAuthenticated={Boolean(
+      session?.user?.id && session.accessToken && !session.error
+    )} />;
+  }
+
   const totalPages = Math.max(1, Math.ceil(result.total / result.pageSize));
-  const isAuthenticated = Boolean(session);
+  const isAuthenticated = Boolean(
+    session?.user?.id && session.accessToken && !session.error
+  );
 
   return (
     <div className="flex flex-1 flex-col">

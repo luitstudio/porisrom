@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 
+import { BrandLogo } from "@/components/common/brand-logo";
 import { AuthHeader } from "@/components/auth/auth-header";
 import { SocialLoginButtons } from "@/components/auth/social-login-buttons";
 import { AuthFooter } from "@/components/auth/auth-footer";
@@ -29,12 +30,9 @@ export function MobileAuthLayout({
       <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-md flex-col">
         <Link
           href="/"
-          className="flex items-center gap-2 self-start outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="flex self-start outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
         >
-          <PorishromMark />
-          <span className="font-display text-lg font-semibold tracking-tight text-foreground">
-            Porishrom
-          </span>
+          <BrandLogo priority className="h-7" />
         </Link>
 
         <motion.div
@@ -57,15 +55,5 @@ export function MobileAuthLayout({
         </motion.div>
       </div>
     </div>
-  );
-}
-
-function PorishromMark() {
-  return (
-    <svg width="24" height="24" viewBox="0 0 26 26" fill="none" aria-hidden="true" className="shrink-0">
-      <rect width="26" height="26" rx="8" className="fill-primary" />
-      <path d="M13 6L19 13L13 20L7 13L13 6Z" className="fill-primary-foreground" opacity="0.95" />
-      <path d="M13 10.5L15.5 13L13 15.5L10.5 13L13 10.5Z" className="fill-primary" />
-    </svg>
   );
 }

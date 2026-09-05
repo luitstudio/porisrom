@@ -24,7 +24,9 @@ export default async function CompanyLeaderboardPage() {
     auth(),
     backendFetch<LeaderboardEntry[]>("/leaderboard/companies"),
   ]);
-  const isAuthenticated = Boolean(session);
+  const isAuthenticated = Boolean(
+    session?.user?.id && session.accessToken && !session.error
+  );
 
   return (
     <div className="flex flex-1 flex-col">

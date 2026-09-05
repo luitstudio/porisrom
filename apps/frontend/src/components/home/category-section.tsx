@@ -1,164 +1,299 @@
-import Link from "next/link";
+"use client";
 
-import {
-  CategoryCard,
-  type IconKey,
-  type IllustrationKey,
-} from "@/components/home/category-card";
+import * as React from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { ArrowLeft, ArrowRight, ArrowUpRight } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
 
 type Category = {
   title: string;
   description: string;
-  icon: IconKey;
-  href: string;
-  illustration: IllustrationKey;
+  image: string;
+  imageAlt: string;
+  tint: string;
 };
 
 const CATEGORIES: Category[] = [
   {
     title: "Video Editor",
-    description: "Edit cinematic stories with timeline precision, pacing, and polished delivery.",
-    icon: "clapperboard",
-    href: "/categories/video-editor",
-    illustration: "video-editor",
+    description:
+      "Hire a skilled video editor to transform your raw clips into engaging videos for YouTube, social media, businesses, events, and more.",
+    image: "/illustrations/videoediting.webp",
+    imageAlt: "Illustration of a video editor working with a video timeline",
+    tint: "bg-lavender",
   },
   {
-    title: "Videographer",
-    description: "Capture product films, events, and campaign visuals with a production-ready eye.",
-    icon: "camera",
-    href: "/categories/photographer",
-    illustration: "videographer",
+    title: "Videographer & Photographer",
+    description:
+      "Find a professional videographer or photographer to capture moments, products, events, and stories in high-quality visuals.",
+    image: "/illustrations/camera.webp",
+    imageAlt: "Illustration of a professional using a camera",
+    tint: "bg-[#EEEAFE]",
   },
   {
     title: "Graphic Designer",
-    description: "Design refined brand assets, campaign visuals, and clean digital compositions.",
-    icon: "pen-tool",
-    href: "/categories/graphic-designer",
-    illustration: "graphic-designer",
+    description:
+      "Hire a professional graphic designer to create visuals that make your brand stand out — from logos and social media graphics to marketing materials.",
+    image: "/illustrations/graphicdesigner.webp",
+    imageAlt: "Illustration of a graphic designer creating brand artwork",
+    tint: "bg-peach",
   },
   {
     title: "Web Developer",
-    description: "Build fast websites, dashboards, and product experiences for modern teams.",
-    icon: "code",
-    href: "/categories/web-developers",
-    illustration: "web-developer",
+    description:
+      "Hire a skilled web developer to build fast, responsive, and reliable websites that meet your needs.",
+    image: "/illustrations/developer.webp",
+    imageAlt: "Illustration of a web developer working with code",
+    tint: "bg-[#DDF5EC]",
   },
   {
     title: "Motion Designer",
-    description: "Bring interfaces, explainers, and product stories to life with subtle motion.",
-    icon: "sparkles",
-    href: "/categories/motion-designer",
-    illustration: "motion-designer",
+    description:
+      "Turn ideas, graphics, and text into engaging animations that bring your brand to life.",
+    image: "/illustrations/motiondesigner.webp",
+    imageAlt: "Illustration of a motion designer creating animation",
+    tint: "bg-[#DDEEFF]",
   },
   {
     title: "Drone Operator",
-    description: "Create aerial shots, location coverage, and cinematic outdoor perspectives.",
-    icon: "plane-takeoff",
-    href: "/categories/drone-operator",
-    illustration: "drone-operator",
+    description:
+      "Find a professional drone operator to capture beautiful aerial footage for businesses, events, and projects.",
+    image: "/illustrations/drone.webp",
+    imageAlt: "Illustration of a drone operator capturing aerial footage",
+    tint: "bg-[#E2F2FF]",
   },
   {
     title: "Content Writer",
-    description: "Shape articles, landing pages, scripts, and brand narratives that convert.",
-    icon: "pen-line",
-    href: "/categories/content-writer",
-    illustration: "content-writer",
+    description:
+      "Find a content writer to create engaging content for websites, social media, marketing, and brands.",
+    image: "/illustrations/content.webp",
+    imageAlt: "Illustration of a content writer working on an article",
+    tint: "bg-[#F5EBD9]",
   },
   {
     title: "Social Media Marketer",
-    description: "Plan growth campaigns, analytics loops, and platform-native content systems.",
-    icon: "megaphone",
-    href: "/categories/social-media",
-    illustration: "social-media",
+    description:
+      "Find a social media marketer to grow your brand, reach the right audience, and increase engagement.",
+    image: "/illustrations/social-media.webp",
+    imageAlt: "Illustration of a social media marketer reviewing a campaign",
+    tint: "bg-blush",
   },
   {
-    title: "Voice Over Artist",
-    description: "Record crisp narrations, ads, explainers, and branded audio with studio polish.",
-    icon: "mic",
-    href: "/categories/voice-over-artist",
-    illustration: "voice-over",
+    title: "Voiceover Artist",
+    description:
+      "Find a professional voiceover artist to give your content the right voice, tone, and emotion.",
+    image: "/illustrations/voice-over-artist.webp",
+    imageAlt: "Illustration of a voiceover artist recording at a microphone",
+    tint: "bg-[#E9E5FF]",
   },
 ];
 
+const AUTOPLAY_DELAY_MS = 3500;
+
+function getRelativeIndex(index: number, activeIndex: number) {
+  let relative = (index - activeIndex + CATEGORIES.length) % CATEGORIES.length;
+  if (relative > CATEGORIES.length / 2) relative -= CATEGORIES.length;
+  return relative;
+}
+
 export function CategorySection() {
+  const prefersReducedMotion = useReducedMotion();
+  const [activeIndex, setActiveIndex] = React.useState(0);
+  const [isPaused, setIsPaused] = React.useState(false);
+
+  const showPrevious = React.useCallback(() => {
+    setActiveIndex((current) => (current - 1 + CATEGORIES.length) % CATEGORIES.length);
+  }, []);
+
+  const showNext = React.useCallback(() => {
+    setActiveIndex((current) => (current + 1) % CATEGORIES.length);
+  }, []);
+
+  React.useEffect(() => {
+    if (prefersReducedMotion || isPaused) return;
+
+    const interval = window.setInterval(showNext, AUTOPLAY_DELAY_MS);
+    return () => window.clearInterval(interval);
+  }, [isPaused, prefersReducedMotion, showNext]);
+
   return (
-    <section className="relative overflow-hidden px-5 py-24 sm:px-8 lg:px-10">
-      <div className="pointer-events-none absolute inset-0 -z-10" aria-hidden="true">
-        <div className="absolute left-1/2 top-10 size-[520px] -translate-x-1/2 rounded-full bg-primary/[0.045] blur-3xl" />
-        <div className="absolute -left-20 bottom-10 size-80 rounded-full bg-orchid/[0.06] blur-3xl" />
-        <div className="absolute right-0 top-1/3 size-72 rounded-full bg-lavender/45 blur-3xl" />
-        <DecorativeLines />
-        <TinyStars />
-      </div>
+    <section
+      className="relative overflow-hidden px-5 py-16 sm:px-8 sm:py-20 lg:px-10 lg:py-28"
+      aria-labelledby="category-showcase-title"
+    >
+      <div
+        className="pointer-events-none absolute inset-0 -z-10 bg-linear-to-br from-white via-white to-lavender/45"
+        aria-hidden="true"
+      />
 
-      <div className="mx-auto max-w-7xl">
-        <div className="flex flex-col gap-8 sm:flex-row sm:items-end sm:justify-between">
-          <div className="max-w-2xl">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-primary">
-              Browse by category
-            </p>
-            <h2 className="mt-4 font-display text-4xl font-semibold leading-tight text-foreground sm:text-5xl">
-              Find{" "}
-              <span className="bg-linear-to-r from-primary via-orchid to-magenta bg-clip-text text-transparent">
-                work
-              </span>{" "}
-              in your{" "}
-              <span className="bg-linear-to-r from-primary via-orchid to-magenta bg-clip-text text-transparent">
-                field
-              </span>
-            </h2>
-            <p className="mt-5 max-w-xl text-base leading-7 text-muted-foreground">
-              Explore focused creative, technical, and production categories built for
-              modern freelance teams and premium client work.
-            </p>
-          </div>
-
-          <Link
-            href="/categories"
-            className="inline-flex h-11 items-center justify-center rounded-full border border-[#ECEAFF] bg-white px-5 text-sm font-semibold text-foreground shadow-[0_14px_40px_-28px_rgba(91,76,255,0.45)] transition-all hover:-translate-y-0.5 hover:border-primary/45 hover:text-primary hover:shadow-[0_20px_50px_-30px_rgba(91,76,255,0.5)] focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+      <div className="mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-[0.82fr_1.18fr] lg:gap-8 xl:gap-14">
+        <div className="max-w-xl lg:pr-6">
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-primary">
+            Find freelancers
+          </p>
+          <h2
+            id="category-showcase-title"
+            className="mt-4 font-display text-4xl font-semibold leading-[1.08] tracking-[-0.025em] text-foreground sm:text-5xl lg:text-[3.4rem] xl:text-6xl"
           >
-            View all categories
+            Find freelancers for every type of work
+          </h2>
+          <p className="mt-6 max-w-lg text-base leading-7 text-muted-foreground sm:text-lg sm:leading-8">
+            From creative work to technology, marketing, and content — find skilled
+            professionals who can bring your project to life.
+          </p>
+          <Link
+            href="/freelancers"
+            className="mt-8 inline-flex min-h-11 items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-[0_14px_34px_-20px_rgba(91,76,255,0.75)] transition-all hover:-translate-y-0.5 hover:bg-primary/90 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none motion-reduce:transform-none"
+          >
+            Explore freelancers
+            <ArrowUpRight className="size-4" aria-hidden="true" />
           </Link>
         </div>
 
-        <div className="mt-12 grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-          {CATEGORIES.map((category, index) => (
-            <CategoryCard key={category.title} index={index} {...category} />
-          ))}
+        <div
+          className="relative min-w-0"
+          onMouseEnter={() => setIsPaused(true)}
+          onMouseLeave={() => setIsPaused(false)}
+          onFocusCapture={() => setIsPaused(true)}
+          onBlurCapture={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget)) setIsPaused(false);
+          }}
+        >
+          <motion.div
+            role="region"
+            aria-roledescription="carousel"
+            aria-label="Freelancer categories"
+            tabIndex={0}
+            onKeyDown={(event) => {
+              if (event.key === "ArrowLeft") {
+                event.preventDefault();
+                showPrevious();
+              }
+              if (event.key === "ArrowRight") {
+                event.preventDefault();
+                showNext();
+              }
+            }}
+            drag={prefersReducedMotion ? false : "x"}
+            dragConstraints={{ left: 0, right: 0 }}
+            dragElastic={0.14}
+            onDragEnd={(_, info) => {
+              if (info.offset.x < -45 || info.velocity.x < -350) showNext();
+              if (info.offset.x > 45 || info.velocity.x > 350) showPrevious();
+            }}
+            className="relative h-[500px] touch-pan-y overflow-hidden rounded-[32px] bg-lavender/50 outline-none ring-offset-4 ring-offset-background focus-visible:ring-3 focus-visible:ring-ring/50 sm:h-[560px] lg:h-[590px] lg:rounded-[40px]"
+            style={{ perspective: "1200px" }}
+          >
+            <div
+              className="pointer-events-none absolute inset-x-12 top-10 h-px bg-primary/15"
+              aria-hidden="true"
+            />
+            <div
+              className="pointer-events-none absolute -right-16 -top-20 size-64 rounded-full bg-white/65 blur-3xl"
+              aria-hidden="true"
+            />
+
+            {CATEGORIES.map((category, index) => {
+              const relativeIndex = getRelativeIndex(index, activeIndex);
+              const isActive = relativeIndex === 0;
+              const isVisible = Math.abs(relativeIndex) <= 1;
+
+              return (
+                <motion.button
+                  key={category.title}
+                  type="button"
+                  aria-label={`Show ${category.title}`}
+                  aria-current={isActive ? "true" : undefined}
+                  aria-hidden={!isVisible}
+                  tabIndex={isVisible ? 0 : -1}
+                  onClick={() => setActiveIndex(index)}
+                  initial={false}
+                  animate={{
+                    x: isActive ? "-50%" : relativeIndex < 0 ? "-111%" : "11%",
+                    y: "-50%",
+                    scale: isActive ? 1 : 0.84,
+                    rotateY: isActive ? 0 : relativeIndex < 0 ? 8 : -8,
+                    opacity: isActive ? 1 : isVisible ? 0.48 : 0,
+                  }}
+                  transition={{
+                    duration: prefersReducedMotion ? 0 : 0.55,
+                    ease: [0.22, 1, 0.36, 1],
+                  }}
+                  className="absolute left-1/2 top-1/2 h-[420px] w-[82%] max-w-[390px] overflow-hidden rounded-[28px] border border-white/80 bg-white text-left shadow-[0_32px_70px_-36px_rgba(20,21,43,0.45)] focus-visible:ring-3 focus-visible:ring-primary/45 focus-visible:outline-none sm:h-[480px] sm:w-[66%] lg:h-[500px] lg:w-[64%]"
+                  style={{
+                    zIndex: isActive ? 3 : isVisible ? 2 : 1,
+                    pointerEvents: isVisible ? "auto" : "none",
+                  }}
+                >
+                  <div className={`relative h-[58%] overflow-hidden ${category.tint}`}>
+                    <span className="absolute left-5 top-5 z-10 rounded-full border border-white/70 bg-white/75 px-3 py-1 text-xs font-semibold tracking-[0.12em] text-primary backdrop-blur-sm">
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+                    <Image
+                      src={category.image}
+                      alt={category.imageAlt}
+                      fill
+                      priority={index === 0}
+                      sizes="(min-width: 1280px) 390px, (min-width: 1024px) 32vw, (min-width: 640px) 46vw, 74vw"
+                      className="object-contain object-bottom px-5 pt-8 drop-shadow-[0_22px_30px_rgba(91,76,255,0.16)]"
+                    />
+                  </div>
+
+                  <div className="flex h-[42%] flex-col px-5 py-5 sm:px-6 sm:py-6">
+                    <h3 className="font-display text-xl font-semibold leading-tight text-foreground sm:text-2xl">
+                      {category.title}
+                    </h3>
+                    <p className="mt-3 line-clamp-4 text-sm leading-6 text-muted-foreground">
+                      {category.description}
+                    </p>
+                  </div>
+                </motion.button>
+              );
+            })}
+          </motion.div>
+
+          <div className="mt-5 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2" aria-label="Choose a category">
+              {CATEGORIES.map((category, index) => (
+                <button
+                  key={category.title}
+                  type="button"
+                  onClick={() => setActiveIndex(index)}
+                  aria-label={`Go to ${category.title}`}
+                  aria-current={index === activeIndex ? "true" : undefined}
+                  className={`h-2 rounded-full transition-[width,background-color] focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none motion-reduce:transition-none ${
+                    index === activeIndex ? "w-6 bg-primary" : "w-2 bg-primary/20 hover:bg-primary/40"
+                  }`}
+                />
+              ))}
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={showPrevious}
+                aria-label="Previous category"
+                className="flex size-11 items-center justify-center rounded-full border border-primary/15 bg-white text-foreground shadow-sm transition-colors hover:border-primary/35 hover:text-primary focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+              >
+                <ArrowLeft className="size-4" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                onClick={showNext}
+                aria-label="Next category"
+                className="flex size-11 items-center justify-center rounded-full border border-primary/15 bg-white text-foreground shadow-sm transition-colors hover:border-primary/35 hover:text-primary focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+              >
+                <ArrowRight className="size-4" aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+
+          <p className="sr-only" aria-live="polite">
+            Showing {CATEGORIES[activeIndex].title}, category {activeIndex + 1} of {CATEGORIES.length}
+          </p>
         </div>
       </div>
     </section>
-  );
-}
-
-function TinyStars() {
-  return (
-    <svg className="absolute inset-0 h-full w-full" fill="none" aria-hidden="true">
-      <path d="M86 96L89 103L96 106L89 109L86 116L83 109L76 106L83 103L86 96Z" fill="#5B4CFF" opacity="0.12" />
-      <path d="M1180 86L1186 101L1202 107L1186 113L1180 128L1174 113L1158 107L1174 101L1180 86Z" fill="#8D83FF" opacity="0.14" />
-      <circle cx="18%" cy="68%" r="3" fill="#A89DFF" opacity="0.14" />
-      <circle cx="78%" cy="78%" r="4" fill="#5B4CFF" opacity="0.08" />
-    </svg>
-  );
-}
-
-function DecorativeLines() {
-  return (
-    <svg className="absolute inset-0 h-full w-full" fill="none" aria-hidden="true">
-      <path
-        d="M-40 210C130 120 260 130 420 215C610 316 760 286 940 178C1090 88 1230 76 1410 160"
-        stroke="#5B4CFF"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        opacity="0.06"
-      />
-      <path
-        d="M110 650C250 542 430 536 586 624C720 700 900 680 1054 560"
-        stroke="#8D83FF"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        opacity="0.07"
-      />
-    </svg>
   );
 }

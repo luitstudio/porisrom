@@ -53,13 +53,13 @@ export function HeroSection({ isAuthenticated = false }: HeroSectionProps) {
           className="mt-4 font-display text-4xl font-semibold leading-[1.15] text-foreground sm:text-5xl lg:mt-6 lg:text-6xl"
         >
           <motion.span variants={headingLine} className="block">
-            Hire smarter. Work better.
+            Find Talent That Fits
           </motion.span>
           <motion.span
             variants={headingLine}
             className="block bg-linear-to-r from-primary via-orchid to-magenta bg-clip-text text-transparent"
           >
-            Grow together.
+            Your Project.
           </motion.span>
         </motion.h1>
 
@@ -69,8 +69,11 @@ export function HeroSection({ isAuthenticated = false }: HeroSectionProps) {
           transition={{ duration: 0.5, delay: 0.2 }}
           className="mt-3 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg lg:mt-6"
         >
-          Porishrom connects skilled freelancers with businesses across India.
-          Find trusted professionals, collaborate securely, and grow together.
+          Save time searching. Discover skilled freelancers who match what your
+          project needs.
+          <span className="mt-2 block font-medium text-foreground">
+            One Platform. Endless Opportunities.
+          </span>
         </motion.p>
 
         <div className="mt-6 w-full max-w-[1040px] lg:mt-10">

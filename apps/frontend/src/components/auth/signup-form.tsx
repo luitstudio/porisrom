@@ -21,6 +21,7 @@ import {
   PendingButtonContent,
   useRegisterAuthPending,
 } from "@/components/auth/auth-pending-state";
+import { useSignupRole } from "@/components/auth/signup-role-context";
 
 const initialState: AuthActionState = {};
 const SIGNUP_LOADING_MESSAGES = [
@@ -35,7 +36,7 @@ export function SignupForm() {
   const [state, formAction, isPending] = useActionState(signupAction, initialState);
   const [showPassword, setShowPassword] = React.useState(false);
   const [acceptedTerms, setAcceptedTerms] = React.useState(false);
-  const [role, setRole] = React.useState<"freelancer" | "client">("freelancer");
+  const { role, setRole } = useSignupRole();
   const emailRef = React.useRef<HTMLInputElement>(null);
   const prefersReducedMotion = useReducedMotion();
 

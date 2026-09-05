@@ -80,7 +80,9 @@ export default async function CompanyProfilePage({
   ]);
   if (!profile) notFound();
 
-  const isAuthenticated = Boolean(session);
+  const isAuthenticated = Boolean(
+    session?.user?.id && session.accessToken && !session.error
+  );
 
   // Only a logged-in Freelancer can connect with a Company — fetch the viewer's
   // connections to find any existing relationship with this profile's owner.

@@ -84,7 +84,9 @@ export default async function FreelancerProfilePage({
   ]);
   if (!profile) notFound();
 
-  const isAuthenticated = Boolean(session);
+  const isAuthenticated = Boolean(
+    session?.user?.id && session.accessToken && !session.error
+  );
   const location = [profile.district, profile.state].filter(Boolean).join(", ");
 
   // Only a logged-in Client can connect with a Freelancer — fetch the viewer's

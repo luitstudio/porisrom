@@ -24,7 +24,9 @@ export default async function FreelancerLeaderboardPage() {
     auth(),
     backendFetch<LeaderboardEntry[]>("/leaderboard/freelancers"),
   ]);
-  const isAuthenticated = Boolean(session);
+  const isAuthenticated = Boolean(
+    session?.user?.id && session.accessToken && !session.error
+  );
 
   return (
     <div className="flex flex-1 flex-col">

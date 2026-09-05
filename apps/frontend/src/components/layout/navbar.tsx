@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import { ChevronDown, Globe, Menu, Search, User } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { BrandLogo } from "@/components/common/brand-logo";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
@@ -43,21 +44,6 @@ const NAV_ENTRIES: NavEntry[] = [
   { label: "Find Freelancers", href: "/freelancers" },
   { label: "Find Companies", href: "/companies" },
   {
-    label: "Leaderboard",
-    items: [
-      {
-        label: "Top Freelancers",
-        href: "/leaderboard/freelancers",
-        description: "Highest-rated freelancers on Porisrom",
-      },
-      {
-        label: "Top Companies",
-        href: "/leaderboard/companies",
-        description: "Highest-rated companies on Porisrom",
-      },
-    ],
-  },
-  {
     label: "Categories",
     items: [
       {
@@ -85,17 +71,6 @@ const NAV_ENTRIES: NavEntry[] = [
         href: "/categories/video",
         description: "Editing, motion, and production",
       },
-    ],
-  },
-  { label: "How It Works", href: "/how-it-works" },
-  { label: "Pricing", href: "/pricing" },
-  {
-    label: "Resources",
-    items: [
-      { label: "Blog", href: "/blog", description: "Stories, tips, and product updates" },
-      { label: "Help Center", href: "/help", description: "Answers to common questions" },
-      { label: "Guides", href: "/guides", description: "In-depth playbooks for freelancing" },
-      { label: "Community", href: "/community", description: "Connect with other members" },
     ],
   },
 ];
@@ -128,12 +103,9 @@ export function Navbar({ isAuthenticated = false }: NavbarProps) {
         <motion.div whileHover={{ scale: 1.02 }} transition={{ duration: 0.2 }}>
           <Link
             href="/"
-            className="flex items-center gap-2 rounded-lg outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            className="flex rounded-lg outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           >
-            <PorishromMark />
-            <span className="font-display text-xl font-semibold tracking-tight text-foreground">
-              Porishrom
-            </span>
+            <BrandLogo priority className="h-7 sm:h-8" />
           </Link>
         </motion.div>
 
@@ -268,27 +240,6 @@ export function Navbar({ isAuthenticated = false }: NavbarProps) {
   );
 }
 
-function PorishromMark() {
-  return (
-    <svg
-      width="26"
-      height="26"
-      viewBox="0 0 26 26"
-      fill="none"
-      aria-hidden="true"
-      className="shrink-0"
-    >
-      <rect width="26" height="26" rx="8" className="fill-primary" />
-      <path
-        d="M13 6L19 13L13 20L7 13L13 6Z"
-        className="fill-primary-foreground"
-        opacity="0.95"
-      />
-      <path d="M13 10.5L15.5 13L13 15.5L10.5 13L13 10.5Z" className="fill-primary" />
-    </svg>
-  );
-}
-
 function MobileMenu({
   isAuthenticated,
   pathname,
@@ -316,9 +267,8 @@ function MobileMenu({
         className="flex w-full flex-col gap-0 duration-300 ease-[cubic-bezier(0.32,1.5,0.55,1)] data-[side=right]:w-full sm:max-w-sm"
       >
         <SheetHeader className="border-b border-border">
-          <SheetTitle className="flex items-center gap-2 font-display text-lg">
-            <PorishromMark />
-            Porishrom
+          <SheetTitle className="flex items-center">
+            <BrandLogo className="h-7" />
           </SheetTitle>
         </SheetHeader>
 

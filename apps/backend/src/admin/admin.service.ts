@@ -3,6 +3,31 @@ import type { Role } from "@porishrom/database";
 
 import { PrismaService } from "../prisma/prisma.service";
 
+const ADMIN_USER_LIST_SELECT = {
+  id: true,
+  name: true,
+  email: true,
+  role: true,
+  status: true,
+  createdAt: true,
+  freelancerProfile: {
+    select: {
+      verificationStatus: true,
+      isBadgeVerified: true,
+      ratingAvg: true,
+      ratingCount: true,
+    },
+  },
+  companyProfile: {
+    select: {
+      verificationStatus: true,
+      isBadgeVerified: true,
+      ratingAvg: true,
+      ratingCount: true,
+    },
+  },
+} as const;
+
 @Injectable()
 export class AdminService {
   constructor(private readonly prisma: PrismaService) {}
@@ -10,7 +35,7 @@ export class AdminService {
   listUsers(params: { role?: string }) {
     return this.prisma.db.user.findMany({
       where: params.role ? { role: params.role as Role } : undefined,
-      include: { freelancerProfile: true, companyProfile: true },
+      select: ADMIN_USER_LIST_SELECT,
       orderBy: { createdAt: "desc" },
     });
   }
