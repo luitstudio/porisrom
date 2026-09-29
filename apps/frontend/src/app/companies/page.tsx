@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 
 import { auth } from "@/auth";
 import { DiscoveryUnavailable } from "@/components/common/discovery-unavailable";
+import { CompanyDiscoveryTransition } from "@/components/discovery/company-discovery-transition";
 import { Footer } from "@/components/layout/footer";
 import { Navbar } from "@/components/layout/navbar";
 import { backendFetch } from "@/lib/backend-api";
@@ -47,6 +48,7 @@ export default async function CompaniesPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = await searchParams;
+  const keyword = typeof params.keyword === "string" ? params.keyword : undefined;
   const categoryId = typeof params.categoryId === "string" ? params.categoryId : undefined;
   const state = typeof params.state === "string" ? params.state : undefined;
   const verifiedOnly = params.verifiedOnly === "true";
@@ -57,6 +59,7 @@ export default async function CompaniesPage({
     backendFetch<Category[]>("/categories").catch(() => null),
     backendFetch<SearchResult>(
       `/search/companies?${buildQueryString({
+        keyword,
         categoryId,
         state,
         verifiedOnly: verifiedOnly ? "true" : undefined,
@@ -73,6 +76,15 @@ export default async function CompaniesPage({
   }
 
   const totalPages = Math.max(1, Math.ceil(result.total / result.pageSize));
+  const hasActiveFilters = Boolean(keyword || categoryId || state || verifiedOnly || page > 1);
+  const pageHref = (nextPage: number) =>
+    `/companies?${buildQueryString({
+      keyword,
+      categoryId,
+      state,
+      verifiedOnly: verifiedOnly ? "true" : undefined,
+      page: String(nextPage),
+    })}`;
   const isAuthenticated = Boolean(
     session?.user?.id && session.accessToken && !session.error
   );
@@ -82,16 +94,24 @@ export default async function CompaniesPage({
       <Navbar isAuthenticated={isAuthenticated} />
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-5 pt-28 pb-16 sm:px-8 sm:pt-32">
+        <CompanyDiscoveryTransition>
         <h1 className="font-display text-3xl font-semibold text-foreground">Find Companies</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {result.total} compan{result.total === 1 ? "y" : "ies"} found
         </p>
 
-        <form className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4" method="get">
+        <form data-company-discovery-form className="mt-6 grid grid-cols-1 gap-3 min-[430px]:grid-cols-2 sm:grid-cols-4" method="get">
+          <input
+            type="search"
+            name="keyword"
+            defaultValue={keyword ?? ""}
+            placeholder="Search companies..."
+            className="h-11 min-w-0 rounded-lg border border-input bg-transparent px-3 text-base text-foreground min-[430px]:col-span-2 sm:col-span-2 sm:text-sm"
+          />
           <select
             name="categoryId"
             defaultValue={categoryId ?? ""}
-            className="h-10 rounded-lg border border-input bg-transparent px-3 text-sm text-foreground"
+            className="h-11 min-w-0 w-full rounded-lg border border-input bg-transparent px-3 text-base text-foreground sm:text-sm"
           >
             <option value="">All categories</option>
             {categories.map((c) => (
@@ -103,7 +123,7 @@ export default async function CompaniesPage({
           <select
             name="state"
             defaultValue={state ?? ""}
-            className="h-10 rounded-lg border border-input bg-transparent px-3 text-sm text-foreground"
+            className="h-11 min-w-0 w-full rounded-lg border border-input bg-transparent px-3 text-base text-foreground sm:text-sm"
           >
             <option value="">All states</option>
             {STATES.map((s) => (
@@ -112,17 +132,28 @@ export default async function CompaniesPage({
               </option>
             ))}
           </select>
-          <label className="flex items-center gap-2 text-sm text-foreground">
+          <label className="flex h-11 items-center gap-2 rounded-lg border border-input px-3 text-sm text-foreground">
             <input type="checkbox" name="verifiedOnly" value="true" defaultChecked={verifiedOnly} />
             Verified only
           </label>
           <button
             type="submit"
-            className="h-10 rounded-lg bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            className="h-11 rounded-lg bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/90"
           >
             Apply filters
           </button>
         </form>
+
+        {hasActiveFilters && (
+          <div className="mt-4 flex items-center justify-between gap-3">
+            <span className="min-w-0 truncate text-sm text-muted-foreground">
+              {keyword ? `Search: ${keyword}` : "Filters applied"}
+            </span>
+            <Link href="/companies" className="shrink-0 text-sm font-medium text-primary hover:underline">
+              Clear filters
+            </Link>
+          </div>
+        )}
 
         <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {result.items.map((item) => (
@@ -158,9 +189,12 @@ export default async function CompaniesPage({
             </Link>
           ))}
           {result.items.length === 0 && (
-            <p className="col-span-full text-sm text-muted-foreground">
-              No companies match these filters yet.
-            </p>
+            <div className="col-span-full rounded-2xl border border-border bg-card p-8 text-center">
+              <p className="text-sm text-muted-foreground">
+                {keyword ? "No companies match your search." : "No companies match these filters yet."}
+              </p>
+              {hasActiveFilters && <Link href="/companies" className="mt-4 inline-block text-sm font-medium text-primary hover:underline">Clear filters and view all</Link>}
+            </div>
           )}
         </div>
 
@@ -169,12 +203,7 @@ export default async function CompaniesPage({
             {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
               <Link
                 key={p}
-                href={`/companies?${buildQueryString({
-                  categoryId,
-                  state,
-                  verifiedOnly: verifiedOnly ? "true" : undefined,
-                  page: String(p),
-                })}`}
+                href={pageHref(p)}
                 className={
                   p === page
                     ? "font-semibold text-primary"
@@ -186,6 +215,7 @@ export default async function CompaniesPage({
             ))}
           </div>
         )}
+        </CompanyDiscoveryTransition>
       </main>
 
       <Footer />

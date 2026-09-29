@@ -1,19 +1,14 @@
 import type { LucideIcon } from "lucide-react";
 import {
   AudioLines,
-  BarChart3,
-  Bot,
-  BriefcaseBusiness,
   Brush,
   Clapperboard,
-  ClipboardList,
   Code2,
   FileText,
   Headphones,
   ImageIcon,
   Languages,
   Megaphone,
-  MessageSquareMore,
   Mic2,
   Music2,
   Palette,
@@ -44,10 +39,31 @@ export type ServiceCategory = {
   services: CategoryService[];
 };
 
+export const CANONICAL_CATEGORIES = {
+  videoEditor: { name: "Video Editor", slug: "video-editor" },
+  videographerPhotographer: {
+    name: "Video Grapher & Photographer",
+    slug: "video-grapher-and-photographer",
+  },
+  graphicDesigner: { name: "Graphic Designer", slug: "graphic-designer" },
+  webDeveloper: { name: "Web Developer", slug: "web-developer" },
+  motionDesigner: { name: "Motion Designer", slug: "motion-designer" },
+  droneOperator: { name: "Drone Operator", slug: "drone-operator" },
+  contentWriter: { name: "Content Writer", slug: "content-writer" },
+  socialMediaMarketer: {
+    name: "Social Media Marketer",
+    slug: "social-media-marketer",
+  },
+  voiceOverArtist: { name: "Voice Over Artist", slug: "voice-over-artist" },
+} as const;
+
+export function categoryHref(category: { slug: string }) {
+  return `/categories/${category.slug}`;
+}
+
 export const SERVICE_CATEGORIES: ServiceCategory[] = [
   {
-    slug: "programming-tech",
-    name: "Programming & Tech",
+    ...CANONICAL_CATEGORIES.webDeveloper,
     tagline: "Technology built around your goals.",
     description: "Find specialists who can build, connect, and improve your digital products.",
     icon: Code2,
@@ -58,8 +74,7 @@ export const SERVICE_CATEGORIES: ServiceCategory[] = [
     ],
   },
   {
-    slug: "graphics-design",
-    name: "Graphics & Design",
+    ...CANONICAL_CATEGORIES.graphicDesigner,
     tagline: "Designs that make you stand out.",
     description: "Work with creative professionals to give every idea a clear and memorable visual identity.",
     icon: Palette,
@@ -72,8 +87,7 @@ export const SERVICE_CATEGORIES: ServiceCategory[] = [
     ],
   },
   {
-    slug: "digital-marketing",
-    name: "Digital Marketing",
+    ...CANONICAL_CATEGORIES.socialMediaMarketer,
     tagline: "Reach the people who matter.",
     description: "Grow your visibility with focused campaigns and practical marketing expertise.",
     icon: Megaphone,
@@ -84,8 +98,7 @@ export const SERVICE_CATEGORIES: ServiceCategory[] = [
     ],
   },
   {
-    slug: "writing-translation",
-    name: "Writing & Translation",
+    ...CANONICAL_CATEGORIES.contentWriter,
     tagline: "Words that move ideas forward.",
     description: "Find writers and language specialists who communicate with clarity and purpose.",
     icon: Languages,
@@ -96,8 +109,7 @@ export const SERVICE_CATEGORIES: ServiceCategory[] = [
     ],
   },
   {
-    slug: "video-animation",
-    name: "Video & Animation",
+    ...CANONICAL_CATEGORIES.videoEditor,
     tagline: "Stories made to move.",
     description: "Bring footage, graphics, and ideas together through polished motion and video.",
     icon: Clapperboard,
@@ -108,20 +120,18 @@ export const SERVICE_CATEGORIES: ServiceCategory[] = [
     ],
   },
   {
-    slug: "ai-services",
-    name: "AI Services",
-    tagline: "Practical AI for real work.",
-    description: "Collaborate with specialists who apply AI to products, content, and workflows.",
-    icon: Bot,
+    ...CANONICAL_CATEGORIES.motionDesigner,
+    tagline: "Ideas designed to move.",
+    description: "Work with motion designers who turn graphics, text, and concepts into polished animation.",
+    icon: Sparkles,
     services: [
-      { name: "AI Integrations", description: "Add useful AI capabilities to your product or workflow.", icon: Bot },
-      { name: "AI Automation", description: "Automate repeatable tasks with thoughtful AI workflows.", icon: Workflow },
-      { name: "AI Content", description: "Develop and refine content with responsible AI support.", icon: Sparkles },
+      { name: "Motion Graphics", description: "Bring graphics and text to life through animation.", icon: Sparkles },
+      { name: "Logo Animation", description: "Give brand identities a memorable animated treatment.", icon: Clapperboard },
+      { name: "Explainer Animation", description: "Explain products and ideas with clear visual motion.", icon: Workflow },
     ],
   },
   {
-    slug: "music-audio",
-    name: "Music & Audio",
+    ...CANONICAL_CATEGORIES.voiceOverArtist,
     tagline: "Give every project the right sound.",
     description: "Find audio professionals for voice, sound editing, and original music.",
     icon: Headphones,
@@ -132,27 +142,25 @@ export const SERVICE_CATEGORIES: ServiceCategory[] = [
     ],
   },
   {
-    slug: "business",
-    name: "Business",
-    tagline: "Support that keeps work moving.",
-    description: "Get dependable help with operations, projects, and business research.",
-    icon: BriefcaseBusiness,
+    ...CANONICAL_CATEGORIES.videographerPhotographer,
+    tagline: "Stories captured with clarity.",
+    description: "Find visual professionals for events, products, portraits, and branded video.",
+    icon: Clapperboard,
     services: [
-      { name: "Virtual Assistance", description: "Stay organised with reliable day-to-day support.", icon: BriefcaseBusiness },
-      { name: "Project Management", description: "Keep priorities, timelines, and teams aligned.", icon: ClipboardList },
-      { name: "Market Research", description: "Turn focused research into useful business insight.", icon: BarChart3 },
+      { name: "Event Coverage", description: "Capture important moments in photo and video.", icon: Clapperboard },
+      { name: "Product Photography", description: "Create clear, polished product imagery.", icon: ImageIcon },
+      { name: "Brand Shoots", description: "Produce visual assets shaped around your brand.", icon: Palette },
     ],
   },
   {
-    slug: "consulting",
-    name: "Consulting",
-    tagline: "Expert perspective for your next move.",
-    description: "Work with experienced specialists to approach important decisions with confidence.",
-    icon: MessageSquareMore,
+    ...CANONICAL_CATEGORIES.droneOperator,
+    tagline: "A new perspective from above.",
+    description: "Hire drone operators for cinematic aerial footage, property, events, and surveys.",
+    icon: Clapperboard,
     services: [
-      { name: "Business Strategy", description: "Clarify priorities and build a practical path forward.", icon: BarChart3 },
-      { name: "Marketing Consulting", description: "Strengthen your positioning, channels, and campaigns.", icon: Megaphone },
-      { name: "Technology Consulting", description: "Choose technology that fits your goals and workflow.", icon: Code2 },
+      { name: "Aerial Video", description: "Capture cinematic footage from the air.", icon: Clapperboard },
+      { name: "Property Shoots", description: "Showcase locations and properties from above.", icon: ImageIcon },
+      { name: "Event Aerials", description: "Add wide, dynamic perspectives to event coverage.", icon: Sparkles },
     ],
   },
 ];

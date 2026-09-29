@@ -12,9 +12,13 @@ export class LeaderboardService {
   listFreelancers(minRatingCount = DEFAULT_MIN_RATING_COUNT) {
     return this.prisma.db.freelancerProfile.findMany({
       where: { verificationStatus: "approved", ratingCount: { gte: minRatingCount } },
-      include: {
+      select: {
+        id: true,
+        ratingAvg: true,
+        ratingCount: true,
+        isBadgeVerified: true,
         user: { select: { name: true } },
-        categories: { include: { category: true } },
+        categories: { select: { category: { select: { id: true, name: true } } } },
       },
       orderBy: [{ ratingAvg: "desc" }, { ratingCount: "desc" }],
       take: LEADERBOARD_SIZE,
@@ -24,9 +28,13 @@ export class LeaderboardService {
   listCompanies(minRatingCount = DEFAULT_MIN_RATING_COUNT) {
     return this.prisma.db.companyProfile.findMany({
       where: { verificationStatus: "approved", ratingCount: { gte: minRatingCount } },
-      include: {
-        user: { select: { name: true } },
-        categories: { include: { category: true } },
+      select: {
+        id: true,
+        companyName: true,
+        ratingAvg: true,
+        ratingCount: true,
+        isBadgeVerified: true,
+        categories: { select: { category: { select: { id: true, name: true } } } },
       },
       orderBy: [{ ratingAvg: "desc" }, { ratingCount: "desc" }],
       take: LEADERBOARD_SIZE,

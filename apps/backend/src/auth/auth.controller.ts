@@ -16,6 +16,7 @@ import { CurrentUser, type CurrentUserPayload } from "./decorators/current-user.
 import { LoginDto } from "./dto/login.dto";
 import { RefreshDto } from "./dto/refresh.dto";
 import { SignupDto } from "./dto/signup.dto";
+import { AuthRateLimitGuard } from "./guards/auth-rate-limit.guard";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 
 const ACCESS_COOKIE = "access_token";
@@ -26,6 +27,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post("signup")
+  @UseGuards(AuthRateLimitGuard)
   async signup(@Body() dto: SignupDto, @Res({ passthrough: true }) res: Response) {
     const result = await this.authService.signup(dto);
     this.setAuthCookies(res, result);
@@ -34,6 +36,7 @@ export class AuthController {
 
   @Post("login")
   @HttpCode(200)
+  @UseGuards(AuthRateLimitGuard)
   async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
     const result = await this.authService.login(dto);
     this.setAuthCookies(res, result);
@@ -42,6 +45,7 @@ export class AuthController {
 
   @Post("refresh")
   @HttpCode(200)
+  @UseGuards(AuthRateLimitGuard)
   async refresh(
     @Body() dto: RefreshDto,
     @Req() req: Request,

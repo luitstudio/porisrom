@@ -4,12 +4,13 @@ import { PassportModule } from "@nestjs/passport";
 
 import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
+import { AuthRateLimitGuard } from "./guards/auth-rate-limit.guard";
 import { JwtStrategy } from "./strategies/jwt.strategy";
 
 @Module({
   imports: [PassportModule, JwtModule.register({})],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, AuthRateLimitGuard, JwtStrategy],
   exports: [AuthService],
 })
 export class AuthModule {}

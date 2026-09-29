@@ -1,13 +1,11 @@
-import { Star } from "lucide-react";
+import { redirect } from "next/navigation";
 
-import { ComingSoon } from "@/components/dashboard/freelancer/coming-soon";
+import { auth } from "@/auth";
+import { getFreelancerReviewDashboardAction } from "@/app/reviews/actions";
+import { ReviewsDashboard } from "@/components/dashboard/freelancer/reviews-dashboard";
 
-export default function ReviewsPage() {
-  return (
-    <ComingSoon
-      title="Reviews"
-      description="Client ratings and testimonials will appear here soon."
-      icon={Star}
-    />
-  );
+export default async function ReviewsPage() {
+  const session = await auth();
+  if (!session?.accessToken || session.user.role !== "freelancer") redirect("/auth/login");
+  return <ReviewsDashboard initialData={await getFreelancerReviewDashboardAction()} />;
 }

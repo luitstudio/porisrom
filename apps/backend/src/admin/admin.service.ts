@@ -1,7 +1,8 @@
-import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import { ConflictException, ForbiddenException, Injectable, NotFoundException, Optional } from "@nestjs/common";
 import type { Role } from "@porishrom/database";
 
 import { PrismaService } from "../prisma/prisma.service";
+import { RealtimeGateway } from "../realtime/realtime.gateway";
 
 const ADMIN_USER_LIST_SELECT = {
   id: true,
@@ -30,7 +31,10 @@ const ADMIN_USER_LIST_SELECT = {
 
 @Injectable()
 export class AdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly realtimeGateway?: RealtimeGateway,
+  ) {}
 
   listUsers(params: { role?: string }) {
     return this.prisma.db.user.findMany({
@@ -38,6 +42,62 @@ export class AdminService {
       select: ADMIN_USER_LIST_SELECT,
       orderBy: { createdAt: "desc" },
     });
+  }
+
+  async getProfileForReview(userId: string) {
+    const user = await this.prisma.db.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        role: true,
+        status: true,
+        isOnboarded: true,
+        freelancerProfile: {
+          select: {
+            id: true,
+            bio: true,
+            address: true,
+            state: true,
+            district: true,
+            experienceLevel: true,
+            verificationStatus: true,
+            isBadgeVerified: true,
+            identityDocument: { select: { status: true, reviewedAt: true } },
+            categories: { select: { category: { select: { id: true, name: true, slug: true } } } },
+            skills: { select: { skill: { select: { id: true, name: true } } } },
+            portfolioItems: { select: { id: true, title: true, type: true, url: true } },
+          },
+        },
+        companyProfile: {
+          select: {
+            id: true,
+            companyName: true,
+            about: true,
+            address: true,
+            state: true,
+            logoUrl: true,
+            verificationStatus: true,
+            isBadgeVerified: true,
+            categories: { select: { category: { select: { id: true, name: true, slug: true } } } },
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException("User not found");
+    }
+    if (user.role !== "freelancer" && user.role !== "client") {
+      throw new NotFoundException("User has no profile to moderate");
+    }
+
+    const profile = user.role === "freelancer" ? user.freelancerProfile : user.companyProfile;
+    if (!profile) {
+      throw new NotFoundException(`${user.role === "freelancer" ? "Freelancer" : "Company"} profile not found`);
+    }
+
+    return { id: user.id, name: user.name, role: user.role, status: user.status, isOnboarded: user.isOnboarded, profile };
   }
 
   approveProfile(userId: string) {
@@ -68,12 +128,16 @@ export class AdminService {
     if (!user) {
       throw new NotFoundException("User not found");
     }
+    if (user.role === "admin") {
+      throw new ForbiddenException("Admin accounts cannot be blocked");
+    }
     if (user.status === "deleted") {
       throw new ConflictException("Cannot change block state of a deleted user");
     }
     return this.prisma.db.user.update({
       where: { id: userId },
       data: { status: blocked ? "blocked" : "active" },
+      select: ADMIN_USER_LIST_SELECT,
     });
   }
 
@@ -82,6 +146,9 @@ export class AdminService {
     if (!user) {
       throw new NotFoundException("User not found");
     }
+    if (user.role === "admin") {
+      throw new ForbiddenException("Admin accounts cannot be deleted");
+    }
     return this.prisma.db.user.update({
       where: { id: userId },
       data: {
@@ -89,6 +156,70 @@ export class AdminService {
         name: "Deleted User",
         email: `deleted-${userId}@porishrom.invalid`,
       },
+      select: ADMIN_USER_LIST_SELECT,
+    });
+  }
+
+  async listReviews() {
+    const reviews = await this.prisma.db.review.findMany({
+      select: {
+        id: true,
+        rating: true,
+        comment: true,
+        direction: true,
+        targetId: true,
+        createdAt: true,
+        author: { select: { id: true, name: true, role: true } },
+        workAssignment: { select: { id: true, title: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    const targetIds = [...new Set(reviews.map((review) => review.targetId))];
+    const targets = await this.prisma.db.user.findMany({
+      where: { id: { in: targetIds } },
+      select: {
+        id: true,
+        name: true,
+        role: true,
+        freelancerProfile: { select: { id: true } },
+        companyProfile: { select: { id: true, companyName: true } },
+      },
+    });
+    const targetsById = new Map(targets.map((target) => [target.id, target]));
+
+    return reviews.map(({ targetId, ...review }) => ({
+      ...review,
+      target: targetsById.get(targetId) ?? { id: targetId, name: "Unavailable user", role: null },
+    }));
+  }
+
+  async removeReview(reviewId: string) {
+    return this.prisma.db.$transaction(async (tx) => {
+      const review = await tx.review.findUnique({
+        where: { id: reviewId },
+        select: { id: true, targetId: true, direction: true },
+      });
+      if (!review) {
+        throw new NotFoundException("Review not found");
+      }
+
+      await tx.review.delete({ where: { id: reviewId } });
+      const aggregate = await tx.review.aggregate({
+        where: { targetId: review.targetId, direction: review.direction },
+        _avg: { rating: true },
+        _count: { rating: true },
+      });
+      const rating = {
+        ratingAvg: aggregate._avg.rating ?? 0,
+        ratingCount: aggregate._count.rating,
+      };
+      if (review.direction === "client_to_freelancer") {
+        await tx.freelancerProfile.updateMany({ where: { userId: review.targetId }, data: rating });
+      } else {
+        await tx.companyProfile.updateMany({ where: { userId: review.targetId }, data: rating });
+      }
+
+      return { id: review.id, removed: true };
     });
   }
 
@@ -137,9 +268,11 @@ export class AdminService {
     if (!user) {
       throw new NotFoundException("User not found");
     }
-    return this.prisma.db.notification.create({
+    const notification = await this.prisma.db.notification.create({
       data: { userId: targetUserId, type: "admin_direct_message", message, createdBy: adminId },
     });
+    this.realtimeGateway?.emitNotificationCreated(notification);
+    return notification;
   }
 
   async getAnalytics() {

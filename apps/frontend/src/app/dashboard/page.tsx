@@ -1,13 +1,12 @@
 import { redirect } from "next/navigation";
 
-import { auth } from "@/auth";
+import { getCurrentUser } from "@/lib/current-user";
 
 export default async function DashboardPage() {
-  const session = await auth();
-  if (!session) redirect("/auth/login");
-  if (!session.user.role) redirect("/onboarding");
+  const user = await getCurrentUser();
+  if (!user) redirect("/auth/login");
+  if (!user.role) redirect("/onboarding");
+  if (user.role === "admin") redirect("/");
 
-  redirect(
-    session.user.role === "freelancer" ? "/dashboard/freelancer" : "/dashboard/client"
-  );
+  redirect(user.role === "freelancer" ? "/dashboard/freelancer" : "/dashboard/client");
 }

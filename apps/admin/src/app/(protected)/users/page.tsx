@@ -1,5 +1,6 @@
 import { backendFetch } from "@/lib/backend-api";
 import { requireSession } from "@/lib/session";
+import Link from "next/link";
 
 import { RowActions } from "./row-actions";
 
@@ -95,13 +96,25 @@ export default async function UsersPage({
                       : "—"}
                   </td>
                   <td className="p-3">
-                    <RowActions
-                      userId={user.id}
-                      hasProfile={Boolean(profile)}
-                      verificationStatus={profile?.verificationStatus}
-                      isBadgeVerified={profile?.isBadgeVerified}
-                      status={user.status}
-                    />
+                    <div className="flex flex-wrap gap-2">
+                      {profile && (user.role === "freelancer" || user.role === "client") && (
+                        <Link
+                          href={`/users/${user.id}`}
+                          className="inline-flex min-h-11 items-center rounded px-3 py-2 font-medium"
+                          style={{ border: "1px solid var(--border)" }}
+                        >
+                          Review profile
+                        </Link>
+                      )}
+                      <RowActions
+                        userId={user.id}
+                        role={user.role}
+                        hasProfile={Boolean(profile)}
+                        verificationStatus={profile?.verificationStatus}
+                        isBadgeVerified={profile?.isBadgeVerified}
+                        status={user.status}
+                      />
+                    </div>
                   </td>
                 </tr>
               );

@@ -110,4 +110,9 @@ export class WorkAssignmentsController {
   getPayment(@CurrentUser() user: CurrentUserPayload, @Param("id") id: string) {
     return this.workAssignmentsService.getPayment(user.userId, id);
   }
+
+  @Get("financial-history")
+  financialHistory(@CurrentUser() user: CurrentUserPayload) {
+    return this.workAssignmentsService.financialHistory(user.userId);
+  }
 }

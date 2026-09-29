@@ -13,14 +13,13 @@ const CLIENT_LINKS = [
 ];
 
 const FREELANCER_LINKS = [
-  { label: "Find Gigs", href: "/dashboard/freelancer/jobs" },
+  { label: "Find Clients", href: "/companies" },
   { label: "Create Portfolio", href: "/dashboard/freelancer/portfolio" },
   { label: "How It Works", href: "/#how-it-works" },
 ];
 
 const COMPANY_LINKS = [
   { label: "About Porisrom", href: "/about" },
-  { label: "Why Porisrom", href: "/why-porisrom" },
   { label: "Contact Us", href: "/contact" },
 ];
 

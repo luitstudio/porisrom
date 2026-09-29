@@ -13,7 +13,7 @@ type SummaryCardProps = {
 
 export function SummaryCard({ title, rows }: SummaryCardProps) {
   return (
-    <Card className="border-0 shadow-sm">
+    <Card className="min-w-0 border-0 shadow-sm">
       <CardHeader>
         <CardTitle className="text-sm font-semibold text-foreground">
           {title}
@@ -22,9 +22,9 @@ export function SummaryCard({ title, rows }: SummaryCardProps) {
       <CardContent className="flex flex-col gap-3">
         {rows.map((row, index) => (
           <div key={row.label}>
-            <div className="flex items-start justify-between gap-4 text-sm">
-              <span className="text-muted-foreground">{row.label}</span>
-              <span className="text-right font-medium text-foreground">
+            <div className="flex min-w-0 items-start justify-between gap-4 text-sm">
+              <span className="shrink-0 text-muted-foreground">{row.label}</span>
+              <span className="min-w-0 break-words text-right font-medium text-foreground">
                 {row.value || "—"}
               </span>
             </div>

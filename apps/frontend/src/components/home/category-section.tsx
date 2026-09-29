@@ -3,10 +3,14 @@
 import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, ArrowUpRight } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
 
+import { CANONICAL_CATEGORIES, categoryHref } from "@/lib/service-categories";
+
 type Category = {
+  slug: string;
   title: string;
   description: string;
   image: string;
@@ -16,7 +20,8 @@ type Category = {
 
 const CATEGORIES: Category[] = [
   {
-    title: "Video Editor",
+    slug: CANONICAL_CATEGORIES.videoEditor.slug,
+    title: CANONICAL_CATEGORIES.videoEditor.name,
     description:
       "Hire a skilled video editor to transform your raw clips into engaging videos for YouTube, social media, businesses, events, and more.",
     image: "/illustrations/videoediting.webp",
@@ -24,7 +29,8 @@ const CATEGORIES: Category[] = [
     tint: "bg-lavender",
   },
   {
-    title: "Videographer & Photographer",
+    slug: CANONICAL_CATEGORIES.videographerPhotographer.slug,
+    title: CANONICAL_CATEGORIES.videographerPhotographer.name,
     description:
       "Find a professional videographer or photographer to capture moments, products, events, and stories in high-quality visuals.",
     image: "/illustrations/camera.webp",
@@ -32,7 +38,8 @@ const CATEGORIES: Category[] = [
     tint: "bg-[#EEEAFE]",
   },
   {
-    title: "Graphic Designer",
+    slug: CANONICAL_CATEGORIES.graphicDesigner.slug,
+    title: CANONICAL_CATEGORIES.graphicDesigner.name,
     description:
       "Hire a professional graphic designer to create visuals that make your brand stand out — from logos and social media graphics to marketing materials.",
     image: "/illustrations/graphicdesigner.webp",
@@ -40,7 +47,8 @@ const CATEGORIES: Category[] = [
     tint: "bg-peach",
   },
   {
-    title: "Web Developer",
+    slug: CANONICAL_CATEGORIES.webDeveloper.slug,
+    title: CANONICAL_CATEGORIES.webDeveloper.name,
     description:
       "Hire a skilled web developer to build fast, responsive, and reliable websites that meet your needs.",
     image: "/illustrations/developer.webp",
@@ -48,7 +56,8 @@ const CATEGORIES: Category[] = [
     tint: "bg-[#DDF5EC]",
   },
   {
-    title: "Motion Designer",
+    slug: CANONICAL_CATEGORIES.motionDesigner.slug,
+    title: CANONICAL_CATEGORIES.motionDesigner.name,
     description:
       "Turn ideas, graphics, and text into engaging animations that bring your brand to life.",
     image: "/illustrations/motiondesigner.webp",
@@ -56,7 +65,8 @@ const CATEGORIES: Category[] = [
     tint: "bg-[#DDEEFF]",
   },
   {
-    title: "Drone Operator",
+    slug: CANONICAL_CATEGORIES.droneOperator.slug,
+    title: CANONICAL_CATEGORIES.droneOperator.name,
     description:
       "Find a professional drone operator to capture beautiful aerial footage for businesses, events, and projects.",
     image: "/illustrations/drone.webp",
@@ -64,7 +74,8 @@ const CATEGORIES: Category[] = [
     tint: "bg-[#E2F2FF]",
   },
   {
-    title: "Content Writer",
+    slug: CANONICAL_CATEGORIES.contentWriter.slug,
+    title: CANONICAL_CATEGORIES.contentWriter.name,
     description:
       "Find a content writer to create engaging content for websites, social media, marketing, and brands.",
     image: "/illustrations/content.webp",
@@ -72,7 +83,8 @@ const CATEGORIES: Category[] = [
     tint: "bg-[#F5EBD9]",
   },
   {
-    title: "Social Media Marketer",
+    slug: CANONICAL_CATEGORIES.socialMediaMarketer.slug,
+    title: CANONICAL_CATEGORIES.socialMediaMarketer.name,
     description:
       "Find a social media marketer to grow your brand, reach the right audience, and increase engagement.",
     image: "/illustrations/social-media.webp",
@@ -80,7 +92,8 @@ const CATEGORIES: Category[] = [
     tint: "bg-blush",
   },
   {
-    title: "Voiceover Artist",
+    slug: CANONICAL_CATEGORIES.voiceOverArtist.slug,
+    title: CANONICAL_CATEGORIES.voiceOverArtist.name,
     description:
       "Find a professional voiceover artist to give your content the right voice, tone, and emotion.",
     image: "/illustrations/voice-over-artist.webp",
@@ -98,6 +111,7 @@ function getRelativeIndex(index: number, activeIndex: number) {
 }
 
 export function CategorySection() {
+  const router = useRouter();
   const prefersReducedMotion = useReducedMotion();
   const [activeIndex, setActiveIndex] = React.useState(0);
   const [isPaused, setIsPaused] = React.useState(false);
@@ -203,11 +217,15 @@ export function CategorySection() {
                 <motion.button
                   key={category.title}
                   type="button"
-                  aria-label={`Show ${category.title}`}
+                  aria-label={`${isActive ? "Explore" : "Show"} ${category.title}`}
                   aria-current={isActive ? "true" : undefined}
                   aria-hidden={!isVisible}
                   tabIndex={isVisible ? 0 : -1}
-                  onClick={() => setActiveIndex(index)}
+                  onClick={() =>
+                    isActive
+                      ? router.push(categoryHref(category))
+                      : setActiveIndex(index)
+                  }
                   initial={false}
                   animate={{
                     x: isActive ? "-50%" : relativeIndex < 0 ? "-111%" : "11%",

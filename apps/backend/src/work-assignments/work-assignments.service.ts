@@ -3,9 +3,12 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from "@nestjs/common";
+import type { PaymentVerification } from "@porishrom/database";
 
 import { PrismaService } from "../prisma/prisma.service";
+import { RealtimeGateway } from "../realtime/realtime.gateway";
 import type { ClaimPaymentDto } from "./dto/claim-payment.dto";
 import type { CreateDeliverableDto } from "./dto/create-deliverable.dto";
 import type { CreateWorkAssignmentDto } from "./dto/create-work-assignment.dto";
@@ -25,44 +28,64 @@ const MISMATCH_THRESHOLD = 3;
 
 @Injectable()
 export class WorkAssignmentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly realtimeGateway?: RealtimeGateway,
+  ) {}
 
   async create(userId: string, conversationId: string, dto: CreateWorkAssignmentDto) {
-    await this.getConversationForParticipant(userId, conversationId);
+    const conversation = await this.getConversationForParticipant(userId, conversationId);
 
     const user = await this.prisma.db.user.findUnique({ where: { id: userId } });
     if (user?.role !== "client") {
       throw new ForbiddenException("Only a company can create a work assignment");
     }
 
-    const assignment = await this.prisma.db.workAssignment.create({
-      data: {
-        conversationId,
-        createdById: userId,
-        title: dto.title,
-        description: dto.description,
-        budgetAmount: dto.budgetAmount,
-        currency: dto.currency ?? "INR",
-        dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
-      },
+    const result = await this.prisma.db.$transaction(async (tx) => {
+      const created = await tx.workAssignment.create({
+        data: {
+          conversationId,
+          createdById: userId,
+          title: dto.title,
+          description: dto.description,
+          budgetAmount: dto.budgetAmount,
+          currency: dto.currency ?? "INR",
+          dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
+        },
+      });
+      await tx.workAssignmentEvent.create({
+        data: { workAssignmentId: created.id, actorId: userId, action: "proposed" },
+      });
+      const notification = await tx.notification.create({
+        data: {
+          userId:
+            conversation.connection.requesterId === userId
+              ? conversation.connection.receiverId
+              : conversation.connection.requesterId,
+          type: "work_assignment_proposed",
+          message: "You received a new work assignment.",
+        },
+      });
+      return { assignment: created, notification };
     });
 
-    await this.logEvent(assignment.id, userId, "proposed");
-    return this.withDetails(assignment.id);
+    this.realtimeGateway?.emitNotificationCreated(result.notification);
+    return this.withDetails(userId, result.assignment.id);
   }
 
   async findOneForParticipant(userId: string, id: string) {
     const assignment = await this.getOwnAssignment(userId, id);
-    return this.withDetails(assignment.id);
+    return this.withDetails(userId, assignment.id);
   }
 
   async listForConversation(userId: string, conversationId: string) {
     await this.getConversationForParticipant(userId, conversationId);
-    return this.prisma.db.workAssignment.findMany({
+    const assignments = await this.prisma.db.workAssignment.findMany({
       where: { conversationId },
       include: FULL_INCLUDE,
       orderBy: { createdAt: "desc" },
     });
+    return assignments.map((assignment) => this.redactAssignmentPayment(assignment, userId));
   }
 
   async respond(userId: string, id: string, dto: RespondWorkAssignmentDto) {
@@ -83,13 +106,40 @@ export class WorkAssignmentsService {
           ? "rejected"
           : "modification_requested";
 
-    await this.prisma.db.workAssignment.update({
-      where: { id: assignment.id },
-      data: { status: nextStatus },
+    const notification = await this.prisma.db.$transaction(async (tx) => {
+      await tx.workAssignment.update({
+        where: { id: assignment.id },
+        data: { status: nextStatus },
+      });
+      await tx.workAssignmentEvent.create({
+        data: {
+          workAssignmentId: assignment.id,
+          actorId: userId,
+          action: dto.action,
+          note: dto.note,
+        },
+      });
+      if (dto.action === "accept" || dto.action === "reject") {
+        return tx.notification.create({
+          data: {
+            userId: assignment.createdById,
+            type:
+              dto.action === "accept"
+                ? "work_assignment_accepted"
+                : "work_assignment_rejected",
+            message:
+              dto.action === "accept"
+                ? "Your work assignment was accepted."
+                : "Your work assignment was rejected.",
+          },
+        });
+      }
+      return null;
     });
-    await this.logEvent(assignment.id, userId, dto.action, dto.note);
+    if (notification) this.realtimeGateway?.emitNotificationCreated(notification);
 
-    return this.withDetails(assignment.id);
+    await this.emitFinancialUpdate(assignment.id);
+    return this.withDetails(userId, assignment.id);
   }
 
   async revise(userId: string, id: string, dto: ReviseWorkAssignmentDto) {
@@ -103,27 +153,45 @@ export class WorkAssignmentsService {
     }
 
     if (dto.action === "reject") {
-      await this.prisma.db.workAssignment.update({
-        where: { id: assignment.id },
-        data: { status: "rejected" },
+      await this.prisma.db.$transaction(async (tx) => {
+        await tx.workAssignment.update({
+          where: { id: assignment.id },
+          data: { status: "rejected" },
+        });
+        await tx.workAssignmentEvent.create({
+          data: {
+            workAssignmentId: assignment.id,
+            actorId: userId,
+            action: "rejected",
+            note: dto.note,
+          },
+        });
       });
-      await this.logEvent(assignment.id, userId, "rejected", dto.note);
-      return this.withDetails(assignment.id);
+      return this.withDetails(userId, assignment.id);
     }
 
-    await this.prisma.db.workAssignment.update({
-      where: { id: assignment.id },
-      data: {
-        status: "proposed",
-        ...(dto.title ? { title: dto.title } : {}),
-        ...(dto.description ? { description: dto.description } : {}),
-        ...(dto.budgetAmount !== undefined ? { budgetAmount: dto.budgetAmount } : {}),
-        ...(dto.dueDate ? { dueDate: new Date(dto.dueDate) } : {}),
-      },
+    await this.prisma.db.$transaction(async (tx) => {
+      await tx.workAssignment.update({
+        where: { id: assignment.id },
+        data: {
+          status: "proposed",
+          ...(dto.title ? { title: dto.title } : {}),
+          ...(dto.description ? { description: dto.description } : {}),
+          ...(dto.budgetAmount !== undefined ? { budgetAmount: dto.budgetAmount } : {}),
+          ...(dto.dueDate ? { dueDate: new Date(dto.dueDate) } : {}),
+        },
+      });
+      await tx.workAssignmentEvent.create({
+        data: {
+          workAssignmentId: assignment.id,
+          actorId: userId,
+          action: "revised",
+          note: dto.note,
+        },
+      });
     });
-    await this.logEvent(assignment.id, userId, "revised", dto.note);
 
-    return this.withDetails(assignment.id);
+    return this.withDetails(userId, assignment.id);
   }
 
   async cancel(userId: string, id: string, note?: string) {
@@ -134,12 +202,21 @@ export class WorkAssignmentsService {
     }
 
     if (!assignment.cancelRequestedById) {
-      await this.prisma.db.workAssignment.update({
-        where: { id: assignment.id },
-        data: { cancelRequestedById: userId },
+      await this.prisma.db.$transaction(async (tx) => {
+        await tx.workAssignment.update({
+          where: { id: assignment.id },
+          data: { cancelRequestedById: userId },
+        });
+        await tx.workAssignmentEvent.create({
+          data: {
+            workAssignmentId: assignment.id,
+            actorId: userId,
+            action: "cancel_requested",
+            note,
+          },
+        });
       });
-      await this.logEvent(assignment.id, userId, "cancel_requested", note);
-      return this.withDetails(assignment.id);
+      return this.withDetails(userId, assignment.id);
     }
 
     if (assignment.cancelRequestedById === userId) {
@@ -148,13 +225,18 @@ export class WorkAssignmentsService {
       );
     }
 
-    await this.prisma.db.workAssignment.update({
-      where: { id: assignment.id },
-      data: { status: "cancelled" },
+    await this.prisma.db.$transaction(async (tx) => {
+      await tx.workAssignment.update({
+        where: { id: assignment.id },
+        data: { status: "cancelled" },
+      });
+      await tx.workAssignmentEvent.create({
+        data: { workAssignmentId: assignment.id, actorId: userId, action: "cancelled", note },
+      });
     });
-    await this.logEvent(assignment.id, userId, "cancelled", note);
 
-    return this.withDetails(assignment.id);
+    await this.emitFinancialUpdate(assignment.id);
+    return this.withDetails(userId, assignment.id);
   }
 
   async submitDeliverable(userId: string, id: string, dto: CreateDeliverableDto) {
@@ -168,16 +250,26 @@ export class WorkAssignmentsService {
       throw new ConflictException("This assignment is not ready for a deliverable submission");
     }
 
-    await this.prisma.db.deliverable.create({
-      data: { workAssignmentId: id, type: dto.type, url: dto.url, note: dto.note },
+    await this.prisma.db.$transaction(async (tx) => {
+      await tx.deliverable.create({
+        data: { workAssignmentId: id, type: dto.type, url: dto.url, note: dto.note },
+      });
+      await tx.workAssignment.update({
+        where: { id: assignment.id },
+        data: { status: "submitted" },
+      });
+      await tx.workAssignmentEvent.create({
+        data: {
+          workAssignmentId: assignment.id,
+          actorId: userId,
+          action: "submitted",
+          note: dto.note,
+        },
+      });
     });
-    await this.prisma.db.workAssignment.update({
-      where: { id: assignment.id },
-      data: { status: "submitted" },
-    });
-    await this.logEvent(assignment.id, userId, "submitted", dto.note);
 
-    return this.withDetails(assignment.id);
+    await this.emitFinancialUpdate(assignment.id);
+    return this.withDetails(userId, assignment.id);
   }
 
   async acceptDelivery(userId: string, id: string) {
@@ -192,18 +284,27 @@ export class WorkAssignmentsService {
       throw new ConflictException("This assignment has no submitted delivery awaiting review");
     }
 
-    await this.prisma.db.workAssignment.update({
-      where: { id: assignment.id },
-      data: { status: "payment_pending" },
+    await this.prisma.db.$transaction(async (tx) => {
+      await tx.workAssignment.update({
+        where: { id: assignment.id },
+        data: { status: "payment_pending" },
+      });
+      await tx.paymentVerification.upsert({
+        where: { workAssignmentId: id },
+        create: { workAssignmentId: id },
+        update: {},
+      });
+      await tx.workAssignmentEvent.create({
+        data: {
+          workAssignmentId: assignment.id,
+          actorId: userId,
+          action: "delivery_accepted",
+        },
+      });
     });
-    await this.prisma.db.paymentVerification.upsert({
-      where: { workAssignmentId: id },
-      create: { workAssignmentId: id },
-      update: {},
-    });
-    await this.logEvent(assignment.id, userId, "delivery_accepted");
 
-    return this.withDetails(assignment.id);
+    await this.emitFinancialUpdate(assignment.id);
+    return this.withDetails(userId, assignment.id);
   }
 
   async requestDeliveryRevision(userId: string, id: string, note?: string) {
@@ -218,13 +319,22 @@ export class WorkAssignmentsService {
       throw new ConflictException("This assignment has no submitted delivery awaiting review");
     }
 
-    await this.prisma.db.workAssignment.update({
-      where: { id: assignment.id },
-      data: { status: "revision_requested" },
+    await this.prisma.db.$transaction(async (tx) => {
+      await tx.workAssignment.update({
+        where: { id: assignment.id },
+        data: { status: "revision_requested" },
+      });
+      await tx.workAssignmentEvent.create({
+        data: {
+          workAssignmentId: assignment.id,
+          actorId: userId,
+          action: "revision_requested",
+          note,
+        },
+      });
     });
-    await this.logEvent(assignment.id, userId, "revision_requested", note);
 
-    return this.withDetails(assignment.id);
+    return this.withDetails(userId, assignment.id);
   }
 
   async claimPaid(userId: string, id: string, dto: ClaimPaymentDto) {
@@ -232,61 +342,197 @@ export class WorkAssignmentsService {
     if (assignment.createdById !== userId) {
       throw new ForbiddenException("Only the company can claim a payment as sent");
     }
-    this.assertPaymentOpen(assignment.status);
-
-    const existing = await this.prisma.db.paymentVerification.findUnique({
-      where: { workAssignmentId: id },
-    });
-    if (!existing) {
-      throw new NotFoundException("Payment verification record not found");
-    }
-
-    const updated = await this.prisma.db.paymentVerification.update({
-      where: { id: existing.id },
-      data: {
-        clientUtr: dto.utr,
-        clientClaimedAt: new Date(),
-        status: existing.freelancerUtr ? existing.status : "awaiting_freelancer",
-      },
-    });
-    await this.logEvent(id, userId, "payment_claimed_paid");
-    await this.finalizePaymentClaim(id, userId, updated);
-
-    return this.getPayment(userId, id);
+    return this.processPaymentClaim(id, userId, dto.utr, "client");
   }
 
   async claimReceived(userId: string, id: string, dto: ClaimPaymentDto) {
-    const assignment = await this.getOwnAssignment(userId, id);
+    await this.getOwnAssignment(userId, id);
     const user = await this.prisma.db.user.findUnique({ where: { id: userId } });
     if (user?.role !== "freelancer") {
       throw new ForbiddenException("Only the freelancer can claim a payment as received");
     }
-    this.assertPaymentOpen(assignment.status);
-
-    const existing = await this.prisma.db.paymentVerification.findUnique({
-      where: { workAssignmentId: id },
-    });
-    if (!existing) {
-      throw new NotFoundException("Payment verification record not found");
-    }
-
-    const updated = await this.prisma.db.paymentVerification.update({
-      where: { id: existing.id },
-      data: {
-        freelancerUtr: dto.utr,
-        freelancerClaimedAt: new Date(),
-        status: existing.clientUtr ? existing.status : "awaiting_client",
-      },
-    });
-    await this.logEvent(id, userId, "payment_claimed_received");
-    await this.finalizePaymentClaim(id, userId, updated);
-
-    return this.getPayment(userId, id);
+    return this.processPaymentClaim(id, userId, dto.utr, "freelancer");
   }
 
   async getPayment(userId: string, id: string) {
-    await this.getOwnAssignment(userId, id);
-    return this.prisma.db.paymentVerification.findUnique({ where: { workAssignmentId: id } });
+    const assignment = await this.getOwnAssignment(userId, id);
+    const payment = await this.prisma.db.paymentVerification.findUnique({
+      where: { workAssignmentId: id },
+    });
+    return payment
+      ? this.paymentResponse(payment, assignment.createdById === userId ? "client" : "freelancer")
+      : null;
+  }
+
+  async financialHistory(userId: string) {
+    const user = await this.prisma.db.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+    if (user?.role !== "freelancer" && user?.role !== "client") {
+      throw new ForbiddenException("Only marketplace participants can view financial history");
+    }
+
+    const assignments = await this.prisma.db.workAssignment.findMany({
+      where: {
+        conversation: {
+          connection: { OR: [{ requesterId: userId }, { receiverId: userId }] },
+        },
+      },
+      include: {
+        paymentVerification: true,
+        deliverables: { select: { submittedAt: true }, orderBy: { submittedAt: "desc" }, take: 1 },
+        conversation: {
+          select: {
+            connection: {
+              select: {
+                requester: { select: { id: true, name: true } },
+                receiver: { select: { id: true, name: true } },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { updatedAt: "desc" },
+    });
+
+    const history = assignments.map((assignment) => {
+      const connection = assignment.conversation.connection;
+      const counterparty = connection.requester.id === userId ? connection.receiver : connection.requester;
+      const party = assignment.createdById === userId ? "client" : "freelancer";
+      const payment = assignment.paymentVerification;
+      return {
+        id: assignment.id,
+        title: assignment.title,
+        amount: Number(assignment.budgetAmount),
+        currency: assignment.currency,
+        assignmentStatus: assignment.status,
+        createdAt: assignment.createdAt,
+        updatedAt: assignment.updatedAt,
+        deliverableSubmittedAt: assignment.deliverables[0]?.submittedAt ?? null,
+        counterpartyName: counterparty.name,
+        payment: payment ? this.paymentResponse(payment, party) : null,
+      };
+    });
+    const verified = history.filter((item) => item.payment?.status === "verified");
+    const active = history.filter((item) => !TERMINAL_STATUSES.includes(item.assignmentStatus));
+    const pending = history.filter((item) => item.assignmentStatus === "payment_pending");
+    return {
+      role: user.role,
+      summary: {
+        totalAssignments: history.length,
+        activeAssignments: active.length,
+        completedAssignments: history.filter((item) => item.assignmentStatus === "completed").length,
+        verifiedAmount: verified.reduce((total, item) => total + item.amount, 0),
+        pendingAmount: pending.reduce((total, item) => total + item.amount, 0),
+        activeWorkValue: active.reduce((total, item) => total + item.amount, 0),
+        averageCompletedAssignmentValue: verified.length
+          ? verified.reduce((total, item) => total + item.amount, 0) / verified.length
+          : 0,
+      },
+      history,
+    };
+  }
+
+  private async processPaymentClaim(
+    assignmentId: string,
+    actorId: string,
+    utr: string,
+    party: "client" | "freelancer",
+  ) {
+    const payment = await this.prisma.db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "PaymentVerification" WHERE "workAssignmentId" = ${assignmentId} FOR UPDATE`;
+
+      const assignment = await tx.workAssignment.findUnique({
+        where: { id: assignmentId },
+        select: { status: true },
+      });
+      if (!assignment) {
+        throw new NotFoundException("Work assignment not found");
+      }
+      this.assertPaymentOpen(assignment.status);
+
+      const existing = await tx.paymentVerification.findUnique({
+        where: { workAssignmentId: assignmentId },
+      });
+      if (!existing) {
+        throw new NotFoundException("Payment verification record not found");
+      }
+
+      const claimedAt = new Date();
+      let updated = await tx.paymentVerification.update({
+        where: { id: existing.id },
+        data:
+          party === "client"
+            ? {
+                clientUtr: utr,
+                clientClaimedAt: claimedAt,
+                status: existing.freelancerUtr ? existing.status : "awaiting_freelancer",
+              }
+            : {
+                freelancerUtr: utr,
+                freelancerClaimedAt: claimedAt,
+                status: existing.clientUtr ? existing.status : "awaiting_client",
+              },
+      });
+      await tx.workAssignmentEvent.create({
+        data: {
+          workAssignmentId: assignmentId,
+          actorId,
+          action: party === "client" ? "payment_claimed_paid" : "payment_claimed_received",
+        },
+      });
+
+      if (!updated.clientUtr || !updated.freelancerUtr) {
+        return updated;
+      }
+
+      if (updated.clientUtr === updated.freelancerUtr) {
+        updated = await tx.paymentVerification.update({
+          where: { id: updated.id },
+          data: { status: "verified", verifiedAt: new Date() },
+        });
+        await tx.workAssignment.update({
+          where: { id: assignmentId },
+          data: { status: "completed" },
+        });
+        await tx.workAssignmentEvent.create({
+          data: { workAssignmentId: assignmentId, actorId, action: "payment_verified" },
+        });
+        return updated;
+      }
+
+      const mismatchCount = updated.mismatchCount + 1;
+      updated = await tx.paymentVerification.update({
+        where: { id: updated.id },
+        data: {
+          status: "mismatch",
+          mismatchCount,
+          clientUtr: null,
+          clientClaimedAt: null,
+          freelancerUtr: null,
+          freelancerClaimedAt: null,
+        },
+      });
+      await tx.workAssignmentEvent.create({
+        data: { workAssignmentId: assignmentId, actorId, action: "payment_mismatch" },
+      });
+
+      if (mismatchCount >= MISMATCH_THRESHOLD) {
+        await tx.workAssignment.update({
+          where: { id: assignmentId },
+          data: { status: "disputed" },
+        });
+        await tx.workAssignmentEvent.create({
+          data: { workAssignmentId: assignmentId, actorId, action: "payment_disputed" },
+        });
+      }
+
+      return updated;
+    });
+
+    await this.emitFinancialUpdate(assignmentId);
+    return this.paymentResponse(payment, party);
   }
 
   private assertPaymentOpen(status: string) {
@@ -298,59 +544,34 @@ export class WorkAssignmentsService {
     }
   }
 
-  private async finalizePaymentClaim(
-    assignmentId: string,
-    actorId: string,
-    payment: {
-      id: string;
-      clientUtr: string | null;
-      freelancerUtr: string | null;
-      mismatchCount: number;
-    },
-  ) {
-    if (!payment.clientUtr || !payment.freelancerUtr) {
-      return;
-    }
+  private paymentResponse(payment: PaymentVerification, party: "client" | "freelancer") {
+    return {
+      id: payment.id,
+      workAssignmentId: payment.workAssignmentId,
+      status: payment.status,
+      mismatchCount: payment.mismatchCount,
+      verifiedAt: payment.verifiedAt,
+      ...(party === "client"
+        ? { clientUtr: payment.clientUtr, clientClaimedAt: payment.clientClaimedAt }
+        : {
+            freelancerUtr: payment.freelancerUtr,
+            freelancerClaimedAt: payment.freelancerClaimedAt,
+          }),
+    };
+  }
 
-    if (payment.clientUtr === payment.freelancerUtr) {
-      await this.prisma.db.paymentVerification.update({
-        where: { id: payment.id },
-        data: { status: "verified", verifiedAt: new Date() },
-      });
-      await this.prisma.db.workAssignment.update({
-        where: { id: assignmentId },
-        data: { status: "completed" },
-      });
-      await this.logEvent(assignmentId, actorId, "payment_verified");
-      return;
-    }
-
-    const mismatchCount = payment.mismatchCount + 1;
-    await this.prisma.db.paymentVerification.update({
-      where: { id: payment.id },
-      data: {
-        status: "mismatch",
-        mismatchCount,
-        // Clear both claims so the next submission from either side is compared
-        // against a genuinely fresh value, not a stale one from before this
-        // mismatch — otherwise a single new claim gets checked against the other
-        // party's untouched old value, inflating mismatchCount twice per actual
-        // correction round instead of once.
-        clientUtr: null,
-        clientClaimedAt: null,
-        freelancerUtr: null,
-        freelancerClaimedAt: null,
-      },
-    });
-    await this.logEvent(assignmentId, actorId, "payment_mismatch");
-
-    if (mismatchCount >= MISMATCH_THRESHOLD) {
-      await this.prisma.db.workAssignment.update({
-        where: { id: assignmentId },
-        data: { status: "disputed" },
-      });
-      await this.logEvent(assignmentId, actorId, "payment_disputed");
-    }
+  private redactAssignmentPayment<
+    T extends { createdById: string; paymentVerification: PaymentVerification | null },
+  >(assignment: T, userId: string) {
+    return {
+      ...assignment,
+      paymentVerification: assignment.paymentVerification
+        ? this.paymentResponse(
+            assignment.paymentVerification,
+            assignment.createdById === userId ? "client" : "freelancer",
+          )
+        : null,
+    };
   }
 
   private async getConversationForParticipant(userId: string, conversationId: string) {
@@ -385,16 +606,25 @@ export class WorkAssignmentsService {
     return assignment;
   }
 
-  private async logEvent(workAssignmentId: string, actorId: string, action: string, note?: string) {
-    await this.prisma.db.workAssignmentEvent.create({
-      data: { workAssignmentId, actorId, action, note },
-    });
-  }
-
-  private withDetails(id: string) {
-    return this.prisma.db.workAssignment.findUnique({
+  private async withDetails(userId: string, id: string) {
+    const assignment = await this.prisma.db.workAssignment.findUnique({
       where: { id },
       include: FULL_INCLUDE,
     });
+    return assignment ? this.redactAssignmentPayment(assignment, userId) : null;
+  }
+
+  private async emitFinancialUpdate(assignmentId: string) {
+    if (!this.realtimeGateway) return;
+    const assignment = await this.prisma.db.workAssignment.findUnique({
+      where: { id: assignmentId },
+      select: { conversation: { select: { connection: { select: { requesterId: true, receiverId: true } } } } },
+    });
+    if (!assignment) return;
+    const connection = assignment.conversation.connection;
+    this.realtimeGateway.emitWorkAssignmentUpdated(
+      [connection.requesterId, connection.receiverId],
+      assignmentId,
+    );
   }
 }

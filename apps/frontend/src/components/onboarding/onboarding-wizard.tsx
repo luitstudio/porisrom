@@ -3,16 +3,17 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { completeOnboardingAction } from "@/app/onboarding/actions";
+import { completeOnboardingAction, uploadIdentityDocumentAction } from "@/app/onboarding/actions";
 import { OnboardingDashboardShell } from "@/components/onboarding/onboarding-dashboard-shell";
 import { CustomerProfileStep } from "@/components/onboarding/steps/customer-profile-step";
 import { FreelancerProfileStep } from "@/components/onboarding/steps/freelancer-profile-step";
 import { PortfolioStep } from "@/components/onboarding/steps/portfolio-step";
 import { TermsStep } from "@/components/onboarding/steps/terms-step";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { STEP_TIPS } from "@/lib/onboarding-data";
 import {
   EMPTY_CUSTOMER_PROFILE,
@@ -20,6 +21,7 @@ import {
   EMPTY_PORTFOLIO,
   type OnboardingRole,
   type Step,
+  type TaxonomyItem,
 } from "@/lib/onboarding-types";
 
 const STEPS: Record<OnboardingRole, Step[]> = {
@@ -49,7 +51,17 @@ const STEP_TITLES: Record<string, { title: string; description: string }> = {
   },
 };
 
-export function OnboardingWizard() {
+type OnboardingWizardProps = {
+  freelancerCategories: TaxonomyItem[];
+  freelancerSkills: TaxonomyItem[];
+  companyCategories: TaxonomyItem[];
+};
+
+export function OnboardingWizard({
+  freelancerCategories,
+  freelancerSkills,
+  companyCategories,
+}: OnboardingWizardProps) {
   const router = useRouter();
   const { data: session, status, update } = useSession();
   const role = (session?.user.role ?? null) as OnboardingRole | null;
@@ -58,20 +70,22 @@ export function OnboardingWizard() {
   // Server Action's redirect(), which doesn't remount the root SessionProvider — so
   // the very first useSession() read can still reflect the pre-sign-in (unauthenticated)
   // state even though the session cookie is already valid. Force one resync on mount.
-  const [hasSynced, setHasSynced] = React.useState(false);
+  const hasRequestedSessionSync = React.useRef(false);
+  const [hasCompletedSessionSync, setHasCompletedSessionSync] = React.useState(false);
   React.useEffect(() => {
-    if (hasSynced || status === "loading") return;
-    if (status === "unauthenticated") {
-      void update().finally(() => setHasSynced(true));
-    } else {
-      setHasSynced(true);
-    }
-  }, [hasSynced, status, update]);
+    if (status !== "unauthenticated" || hasRequestedSessionSync.current) return;
+    hasRequestedSessionSync.current = true;
+    void update().finally(() => setHasCompletedSessionSync(true));
+  }, [status, update]);
+
+  const hasSynced = status === "authenticated" || hasCompletedSessionSync;
 
   const [stepIndex, setStepIndex] = React.useState(0);
   const [validity, setValidity] = React.useState<Record<string, boolean>>({});
   const [pending, setPending] = React.useState(false);
+  const [completed, setCompleted] = React.useState(false);
   const [actionError, setActionError] = React.useState<string | null>(null);
+  const [identityDocumentStatus, setIdentityDocumentStatus] = React.useState<"not_submitted" | "pending">("not_submitted");
 
   const [freelancerProfile, setFreelancerProfile] = React.useState(EMPTY_FREELANCER_PROFILE);
   const [customerProfile, setCustomerProfile] = React.useState(EMPTY_CUSTOMER_PROFILE);
@@ -88,47 +102,62 @@ export function OnboardingWizard() {
   }
 
   async function handleFinish() {
-    if (!role) return;
+    if (!role || pending) return;
     setPending(true);
     setActionError(null);
+    try {
+      const result = await completeOnboardingAction(
+        role,
+        role === "freelancer"
+          ? {
+              about: freelancerProfile.about,
+              address: freelancerProfile.address,
+              state: freelancerProfile.state,
+              district: freelancerProfile.district,
+              language: freelancerProfile.language,
+              experience: freelancerProfile.experience,
+              categoryIds: freelancerProfile.professions.map((category) => category.id),
+              skillIds: portfolio.skills.map((skill) => skill.id),
+              links: portfolio.links,
+            }
+          : {
+              companyName: customerProfile.companyName,
+              about: customerProfile.about,
+              address: customerProfile.address,
+              state: customerProfile.state,
+              categoryIds: customerProfile.categories.map((category) => category.id),
+            }
+      );
 
-    const result = await completeOnboardingAction(
-      role,
-      role === "freelancer"
-        ? {
-            about: freelancerProfile.about,
-            address: freelancerProfile.address,
-            state: freelancerProfile.state,
-            district: freelancerProfile.district,
-            language: freelancerProfile.language,
-            experience: freelancerProfile.experience,
-            professions: freelancerProfile.professions,
-            skills: portfolio.skills,
-            links: portfolio.links,
-          }
-        : {
-            companyName: customerProfile.companyName,
-            about: customerProfile.about,
-            address: customerProfile.address,
-            state: customerProfile.state,
-          }
-    );
+      if ("error" in result) {
+        setPending(false);
+        setActionError(result.error);
+        return;
+      }
 
-    if ("error" in result) {
+      if (role === "freelancer" && freelancerProfile.aadhaarFiles[0]) {
+        const documentForm = new FormData();
+        documentForm.set("document", freelancerProfile.aadhaarFiles[0]);
+        const documentResult = await uploadIdentityDocumentAction(documentForm);
+        if ("error" in documentResult) {
+          setPending(false);
+          setActionError(documentResult.error);
+          return;
+        }
+        setIdentityDocumentStatus(documentResult.status);
+      }
+
+      await update({ isOnboarded: true });
+      setCompleted(true);
+      router.push(result.redirectTo);
+    } catch {
       setPending(false);
-      setActionError(result.error);
-      return;
+      setActionError("We couldn’t finish setting up your profile. Please try again.");
     }
-
-    // The backend now has isOnboarded=true, but the NextAuth JWT (which the
-    // middleware gates /dashboard on) still has the stale pre-onboarding value
-    // until we push this update through explicitly.
-    await update({ isOnboarded: true });
-    setPending(false);
-    router.push(result.redirectTo);
   }
 
   function handleContinue() {
+    if (pending || !canContinue) return;
     if (isLastStep) {
       void handleFinish();
       return;
@@ -137,11 +166,13 @@ export function OnboardingWizard() {
   }
 
   function handleBack() {
+    if (pending) return;
+    setActionError(null);
     setStepIndex((i) => Math.max(i - 1, 0));
   }
 
   if (status === "loading" || !hasSynced) {
-    return null;
+    return <OnboardingLoadingState />;
   }
 
   if (!role) {
@@ -156,6 +187,14 @@ export function OnboardingWizard() {
 
   const roleLabel = role === "freelancer" ? "Freelancer" : "Client";
   const stepCopy = STEP_TITLES[currentStep.id];
+  const validationHint =
+    currentStep.id === "profile"
+      ? role === "freelancer"
+        ? "Enter your full name and select at least one category to continue."
+        : "Enter your company name and select at least one business category to continue."
+      : currentStep.id === "portfolio"
+        ? "Select at least one canonical skill to continue."
+        : "Accept the Terms and Privacy Policy to finish setup.";
 
   return (
     <OnboardingDashboardShell
@@ -164,12 +203,12 @@ export function OnboardingWizard() {
       currentStep={stepIndex}
       tip={STEP_TIPS[currentStep.id]}
     >
-      <div className="flex flex-col gap-6">
-        <div>
-          <h1 className="font-display text-2xl font-semibold text-foreground sm:text-3xl">
+      <div className="flex min-w-0 flex-col gap-5 sm:gap-6">
+        <div className="min-w-0">
+          <h1 className="break-words font-display text-xl font-semibold leading-tight text-foreground min-[375px]:text-2xl sm:text-3xl">
             {stepCopy.title}
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">{stepCopy.description}</p>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">{stepCopy.description}</p>
         </div>
 
         {steps.map((step) => (
@@ -179,6 +218,8 @@ export function OnboardingWizard() {
                 value={freelancerProfile}
                 onChange={setFreelancerProfile}
                 onValidityChange={(valid) => setStepValid(step.id, valid)}
+                categories={freelancerCategories}
+                identityDocumentStatus={identityDocumentStatus}
               />
             )}
             {step.id === "profile" && role === "client" && (
@@ -186,6 +227,7 @@ export function OnboardingWizard() {
                 value={customerProfile}
                 onChange={setCustomerProfile}
                 onValidityChange={(valid) => setStepValid(step.id, valid)}
+                categories={companyCategories}
               />
             )}
             {step.id === "portfolio" && (
@@ -193,6 +235,7 @@ export function OnboardingWizard() {
                 value={portfolio}
                 onChange={setPortfolio}
                 onValidityChange={(valid) => setStepValid(step.id, valid)}
+                skills={freelancerSkills}
               />
             )}
             {step.id === "terms" && (
@@ -209,11 +252,28 @@ export function OnboardingWizard() {
           </div>
         ))}
 
-        {actionError && <p className="text-sm text-destructive">{actionError}</p>}
+        {!canContinue && !pending && (
+          <p className="text-sm text-muted-foreground" aria-live="polite">
+            {validationHint}
+          </p>
+        )}
 
-        <div className="flex items-center justify-between gap-3 border-t border-border pt-6">
+        {actionError && (
+          <Alert variant="destructive" role="alert">
+            <AlertDescription>{actionError}</AlertDescription>
+          </Alert>
+        )}
+
+        {completed && (
+          <Alert aria-live="polite">
+            <CheckCircle2 className="size-4 text-primary" />
+            <AlertDescription>Profile setup complete. Taking you to your dashboard…</AlertDescription>
+          </Alert>
+        )}
+
+        <div className="grid grid-cols-2 items-center gap-3 border-t border-border pt-5 sm:pt-6">
           {stepIndex > 0 ? (
-            <Button variant="ghost" onClick={handleBack} disabled={pending}>
+            <Button className="min-h-11 justify-self-start px-4" variant="ghost" onClick={handleBack} disabled={pending}>
               <ArrowLeft className="size-4" />
               Back
             </Button>
@@ -221,12 +281,40 @@ export function OnboardingWizard() {
             <span />
           )}
 
-          <Button onClick={handleContinue} disabled={!canContinue || pending}>
-            {pending ? "Saving..." : isLastStep ? "Finish setup" : "Continue"}
-            <ArrowRight className="size-4" />
+          <Button className="min-h-11 w-full justify-self-end px-4 min-[375px]:w-auto" onClick={handleContinue} disabled={!canContinue || pending}>
+            {pending ? (
+              <>
+                {completed ? <CheckCircle2 className="size-4" /> : <Loader2 className="size-4 animate-spin" />}
+                {completed ? "Redirecting…" : "Saving…"}
+              </>
+            ) : (
+              <>
+                {isLastStep ? "Finish setup" : "Continue"}
+                <ArrowRight className="size-4" />
+              </>
+            )}
           </Button>
         </div>
       </div>
     </OnboardingDashboardShell>
+  );
+}
+
+function OnboardingLoadingState() {
+  return (
+    <div className="min-h-screen overflow-x-clip bg-background px-3 py-5 min-[375px]:px-4 sm:px-6 sm:py-8">
+      <div className="mx-auto w-full max-w-6xl animate-pulse" aria-label="Loading onboarding" aria-busy="true">
+        <div className="h-11 w-28 rounded-lg bg-muted" />
+        <div className="mt-8 h-2 w-full rounded-full bg-muted" />
+        <div className="mt-8 h-8 w-56 max-w-[80%] rounded-lg bg-muted" />
+        <div className="mt-3 h-4 w-full max-w-md rounded bg-muted" />
+        <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <div className="h-44 rounded-xl bg-muted" />
+          <div className="h-44 rounded-xl bg-muted lg:col-span-2" />
+          <div className="h-44 rounded-xl bg-muted" />
+          <div className="h-44 rounded-xl bg-muted lg:col-span-2" />
+        </div>
+      </div>
+    </div>
   );
 }

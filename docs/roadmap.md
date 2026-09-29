@@ -109,13 +109,107 @@ Bug found and fixed during verification: a React hydration mismatch (#418) from 
 ## Phase 7 — Delivery, payment verification ✅ done
 
 - [x] `Deliverable` model + submit endpoint (Freelancer) — valid from `accepted`/`in_progress`/`revision_requested`, moves status to `submitted`
-- [x] Delivery review endpoints: accept (→ `payment_pending`, also creates the `PaymentVerification` row) / request-revision (→ `revision_requested`, Freelancer resubmits to loop back to `submitted`) (Company)
-- [x] `PaymentVerification` model + claim-paid (Company) / claim-received (Freelancer) endpoints with UTR matching logic, mismatch counter, auto-flag-to-admin (`disputed`) after 3 mismatches
-- [x] Frontend: submit-deliverable UI (Freelancer), review UI (Company), payment claim UI both sides — all built into the same `WorkAssignmentPanel` from Phase 6
-- [x] Admin: payment oversight view (read-only list, flagged mismatches/disputes highlighted in red) — built as a stopgap page at `/admin/payments` inside `apps/frontend` (gated to the admin role) since `apps/admin` doesn't exist as a real app until Phase 9; this surfaced a real gap from Phase 3 — the frontend's session/JWT types deliberately excluded `"admin"` (mapped to `null`) since the frontend wasn't meant to handle that role. Fixed by widening the role type end-to-end and letting `admin` flow through properly, since it now needs to reach this page
-- [x] Manual test plan: verified via curl (submit → request-revision → resubmit → accept → mismatched UTRs → corrected → verified/completed, plus a separate run to hit the 3-mismatch dispute threshold) and a real two-browser-context session covering the same loop end-to-end, plus the admin oversight page
+- [x] Delivery review endpoints: accept (→ `pBrick F — Fix and premium-polish authenticated dashboard shell/sidebar.
 
-Bug found and fixed during verification: the mismatch counter incremented **twice per correction round** instead of once. After a mismatch, the other party's stale UTR was left in place, so the very next claim from either side got compared against that stale value before the other party had reacted — reaching the 3-mismatch dispute threshold after only 2 real rounds. Fixed by clearing both UTRs whenever a mismatch is recorded, so every subsequent comparison is against a genuinely fresh pair of claims.
+The attached screenshot shows a real shell/layout issue:
+- Sidebar occupies the left side, but the main content starts far too far to the right.
+- There is a large dead horizontal gap between sidebar and content.
+- Right-side dashboard content is clipped/off-screen.
+- This indicates incorrect authenticated shell width/offset/centering/overflow behavior.
+- The sidebar also currently looks basic rather than like a polished premium SaaS navigation.
+
+IMPORTANT:
+Fix the SHELL itself. Do NOT patch individual dashboard pages.
+
+First inspect:
+- authenticated freelancer layout
+- authenticated client layout
+- shared dashboard/sidebar components
+- main content wrapper classes
+- desktop/mobile shell positioning
+- any fixed/sticky/width/max-width/margin/padding/overflow rules
+
+Root goal:
+Sidebar + main content must form one correct viewport layout:
+
+[ fixed sidebar ][ flexible main content ]
+
+The main content must:
+- occupy only the remaining viewport width
+- never overlap the sidebar
+- never create unnecessary horizontal overflow
+- never be clipped on the right
+- use `min-width: 0` where needed for flex/grid children
+- allow inner page content to use its own max-width without affecting shell geometry
+- remain responsive
+
+Desktop shell:
+- sidebar has a stable intentional width
+- main area uses `flex: 1` / equivalent available-width behavior
+- no arbitrary left margin that duplicates sidebar width
+- no fixed content width that exceeds available viewport
+- no horizontal page overflow
+
+Premium sidebar direction:
+- Keep the existing dark authenticated theme.
+- Refine spacing and visual hierarchy.
+- Logo/header area should feel intentional.
+- Navigation should be compact and clean.
+- Active item should use a restrained role accent rather than an oversized pill.
+- Icons and labels should align consistently.
+- Add subtle grouping/section rhythm only where existing navigation semantics support it.
+- Bottom user/profile area should feel integrated with the sidebar.
+- Keep Freelancer violet and Client blue/teal role accents.
+- Do NOT add fake navigation sections/items.
+
+Do NOT change:
+- navigation routes
+- auth
+- session behavior
+- API/data fetching
+- backend/Prisma
+- realtime/socket
+- page business logic
+- dashboard content
+- public/landing pages
+- components.json
+- dependencies
+
+Do NOT redesign the dashboard pages themselves.
+Do NOT modify individual page card compositions.
+
+Use existing official shadcn components and existing Lucide icons only.
+No custom UI library.
+No Radix introduction.
+No DaisyUI.
+No gradients/glass/glow.
+
+Responsive:
+- Preserve existing mobile navigation behavior.
+- Ensure sidebar/main shell does not cause horizontal overflow at intermediate desktop/tablet widths.
+- Do not break mobile.
+
+Validation:
+- lint
+- type-check
+- production build
+- git diff --check
+
+Then manually inspect the freelancer dashboard at desktop width and verify:
+1. sidebar does not overlap content
+2. main content begins immediately after sidebar
+3. no horizontal clipping
+4. no horizontal scrollbar caused by shell
+5. dashboard content remains centered within the available main area
+
+Do not commit or push.
+
+Report:
+1. Exact root cause of the shell geometry issue
+2. Changed files
+3. Sidebar visual improvements
+4. Responsive/overflow fix
+5. Validation resultsinst that stale value before the other party had reacted — reaching the 3-mismatch dispute threshold after only 2 real rounds. Fixed by clearing both UTRs whenever a mismatch is recorded, so every subsequent comparison is against a genuinely fresh pair of claims.
 
 ---
 

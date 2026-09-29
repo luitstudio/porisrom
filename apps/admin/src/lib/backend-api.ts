@@ -1,4 +1,13 @@
-const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:4000";
+const LOCAL_BACKEND_URL = "http://localhost:4000";
+
+function getBackendUrl() {
+  const configuredUrl = process.env.BACKEND_URL?.trim();
+  if (configuredUrl) return configuredUrl;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("BACKEND_URL must be configured in production");
+  }
+  return LOCAL_BACKEND_URL;
+}
 
 export class BackendApiError extends Error {
   status: number;
@@ -28,7 +37,7 @@ export async function backendFetch<T = unknown>(
   path: string,
   options: BackendFetchOptions = {},
 ): Promise<T> {
-  const res = await fetch(`${BACKEND_URL}${path}`, {
+  const res = await fetch(`${getBackendUrl()}${path}`, {
     method: options.method ?? "GET",
     headers: {
       "Content-Type": "application/json",

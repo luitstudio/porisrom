@@ -19,7 +19,7 @@ export function MarketplaceSearch() {
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const params = query.trim() ? `?service=${encodeURIComponent(query.trim())}` : "";
+    const params = query.trim() ? `?keyword=${encodeURIComponent(query.trim())}` : "";
     router.push(`/freelancers${params}`);
   }
 
@@ -84,7 +84,7 @@ export function MarketplaceSearch() {
               type="button"
               onClick={() => {
                 setQuery(tag);
-                router.push(`/freelancers?service=${encodeURIComponent(tag)}`);
+                router.push(`/freelancers?keyword=${encodeURIComponent(tag)}`);
               }}
               className="shrink-0 rounded-xl border border-border/90 bg-white px-4 py-2.5 text-sm font-medium text-foreground/75 shadow-[0_8px_24px_-20px_rgba(20,21,43,0.45)] transition-[transform,border-color,color,box-shadow] hover:-translate-y-0.5 hover:border-primary/35 hover:text-primary hover:shadow-[0_14px_30px_-20px_rgba(91,76,255,0.35)] focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none motion-reduce:transform-none"
             >

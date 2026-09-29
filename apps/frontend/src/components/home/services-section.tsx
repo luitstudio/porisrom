@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { SERVICE_CATEGORIES } from "@/lib/service-categories";
+import { SERVICE_CATEGORIES, categoryHref } from "@/lib/service-categories";
 
 export function ServicesSection() {
   return (
@@ -39,7 +39,7 @@ export function ServicesSection() {
               return (
                 <Link
                   key={category.slug}
-                  href={`/categories/${category.slug}`}
+                  href={categoryHref(category)}
                   className="group flex min-h-28 w-37 shrink-0 snap-start flex-col justify-between rounded-2xl border border-border/80 bg-white p-4 shadow-[0_14px_36px_-28px_rgba(20,21,43,0.45)] transition-[transform,border-color,box-shadow] hover:-translate-y-1 hover:border-primary/35 hover:shadow-[0_20px_42px_-26px_rgba(91,76,255,0.35)] focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none motion-reduce:transform-none sm:w-39 lg:min-w-32 lg:flex-1"
                 >
                   <span className="flex size-9 items-center justify-center rounded-xl bg-lavender text-primary transition-colors group-hover:bg-primary group-hover:text-white">

@@ -6,11 +6,14 @@ import type { Metadata } from "next";
 import { auth } from "@/auth";
 import { Footer } from "@/components/layout/footer";
 import { Navbar } from "@/components/layout/navbar";
+import { backendFetch } from "@/lib/backend-api";
 import { getServiceCategory, SERVICE_CATEGORIES } from "@/lib/service-categories";
 
 type CategoryPageProps = {
   params: Promise<{ category: string }>;
 };
+
+type CatalogCategory = { id: string; name: string; slug: string };
 
 export function generateStaticParams() {
   return SERVICE_CATEGORIES.map((category) => ({ category: category.slug }));
@@ -32,7 +35,13 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
 
   if (!category) notFound();
 
-  const session = await auth();
+  const [session, catalogCategories] = await Promise.all([
+    auth(),
+    backendFetch<CatalogCategory[]>("/categories").catch(() => null),
+  ]);
+  const catalogCategory = catalogCategories?.find((item) => item.slug === category.slug);
+  if (!catalogCategory) notFound();
+
   const isAuthenticated = Boolean(
     session?.user?.id && session.accessToken && !session.error
   );
@@ -117,7 +126,7 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
                 return (
                   <Link
                     key={service.name}
-                    href="/freelancers"
+                    href={`/freelancers?categoryId=${encodeURIComponent(catalogCategory.id)}`}
                     className="group flex min-h-56 flex-col rounded-3xl border border-border bg-white p-6 shadow-[0_18px_50px_-38px_rgba(20,21,43,0.45)] transition-[transform,border-color,box-shadow] hover:-translate-y-1 hover:border-primary/35 hover:shadow-[0_24px_56px_-34px_rgba(91,76,255,0.35)] focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none motion-reduce:transform-none sm:p-7"
                   >
                     <div className="flex items-start justify-between gap-4">

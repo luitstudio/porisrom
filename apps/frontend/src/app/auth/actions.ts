@@ -9,6 +9,7 @@ import { BackendApiError, backendFetch } from "@/lib/backend-api";
 
 export type AuthActionState = {
   error?: string;
+  fieldErrors?: Partial<Record<"name" | "email" | "password" | "role", string>>;
 };
 
 const signupSchema = z.object({
@@ -42,7 +43,16 @@ export async function signupAction(
   });
 
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+    const flattened = z.flattenError(parsed.error);
+    return {
+      error: "Please review the highlighted fields.",
+      fieldErrors: {
+        name: flattened.fieldErrors.name?.[0],
+        email: flattened.fieldErrors.email?.[0],
+        password: flattened.fieldErrors.password?.[0],
+        role: flattened.fieldErrors.role?.[0],
+      },
+    };
   }
 
   const { name, email, password, role } = parsed.data;
@@ -54,12 +64,16 @@ export async function signupAction(
     });
   } catch (error) {
     if (error instanceof BackendApiError) {
-      return {
-        error:
-          error.status === 409
-            ? "An account with this email already exists."
-            : error.message,
-      };
+      if (error.status === 409) {
+        return { error: "An account with this email already exists. Try logging in instead." };
+      }
+      if (error.status === 429) {
+        return { error: "Too many signup attempts. Please wait a moment and try again." };
+      }
+      if (error.status >= 500 || /internal server error/i.test(error.message)) {
+        return { error: "We couldn’t create your account right now. Please try again shortly." };
+      }
+      return { error: error.message || "We couldn’t create your account. Please check your details and try again." };
     }
     return { error: "Something went wrong. Please try again." };
   }

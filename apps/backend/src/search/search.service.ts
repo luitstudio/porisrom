@@ -12,10 +12,37 @@ export class SearchService {
   async searchFreelancers(query: SearchFreelancersDto) {
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 20;
+    const keyword = query.keyword?.trim();
 
     const where: Prisma.FreelancerProfileWhereInput = {
       verificationStatus: "approved",
+      ...(keyword
+        ? {
+            OR: [
+              { user: { name: { contains: keyword, mode: "insensitive" } } },
+              { bio: { contains: keyword, mode: "insensitive" } },
+              {
+                categories: {
+                  some: {
+                    category: {
+                      OR: [
+                        { name: { contains: keyword, mode: "insensitive" } },
+                        { slug: { contains: keyword, mode: "insensitive" } },
+                      ],
+                    },
+                  },
+                },
+              },
+              {
+                skills: {
+                  some: { skill: { name: { contains: keyword, mode: "insensitive" } } },
+                },
+              },
+            ],
+          }
+        : {}),
       ...(query.state ? { state: query.state } : {}),
+      ...(query.district ? { district: query.district } : {}),
       ...(query.experienceLevel ? { experienceLevel: query.experienceLevel } : {}),
       ...(query.verifiedOnly ? { isBadgeVerified: true } : {}),
       ...(query.minRating ? { ratingAvg: { gte: query.minRating } } : {}),
@@ -26,10 +53,17 @@ export class SearchService {
     const [items, total] = await Promise.all([
       this.prisma.db.freelancerProfile.findMany({
         where,
-        include: {
+        select: {
+          id: true,
+          bio: true,
+          state: true,
+          district: true,
+          experienceLevel: true,
+          isBadgeVerified: true,
+          ratingAvg: true,
+          ratingCount: true,
           user: { select: { name: true } },
-          categories: { include: { category: true } },
-          skills: { include: { skill: true } },
+          categories: { select: { category: { select: { id: true, name: true, slug: true } } } },
         },
         orderBy: [{ ratingAvg: "desc" }, { ratingCount: "desc" }],
         skip: (page - 1) * pageSize,
@@ -44,9 +78,19 @@ export class SearchService {
   async searchCompanies(query: SearchCompaniesDto) {
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 20;
+    const keyword = query.keyword?.trim();
 
     const where: Prisma.CompanyProfileWhereInput = {
       verificationStatus: "approved",
+      ...(keyword
+        ? {
+            OR: [
+              { companyName: { contains: keyword, mode: "insensitive" } },
+              { about: { contains: keyword, mode: "insensitive" } },
+              { state: { contains: keyword, mode: "insensitive" } },
+            ],
+          }
+        : {}),
       ...(query.state ? { state: query.state } : {}),
       ...(query.verifiedOnly ? { isBadgeVerified: true } : {}),
       ...(query.minRating ? { ratingAvg: { gte: query.minRating } } : {}),
@@ -56,9 +100,16 @@ export class SearchService {
     const [items, total] = await Promise.all([
       this.prisma.db.companyProfile.findMany({
         where,
-        include: {
+        select: {
+          id: true,
+          companyName: true,
+          about: true,
+          state: true,
+          isBadgeVerified: true,
+          ratingAvg: true,
+          ratingCount: true,
           user: { select: { name: true } },
-          categories: { include: { category: true } },
+          categories: { select: { category: { select: { id: true, name: true, slug: true } } } },
         },
         orderBy: [{ ratingAvg: "desc" }, { ratingCount: "desc" }],
         skip: (page - 1) * pageSize,

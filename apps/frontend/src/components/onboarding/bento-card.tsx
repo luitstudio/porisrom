@@ -23,7 +23,7 @@ export function BentoCard({
   return (
     <Card
       className={cn(
-        "gap-4 border-0 shadow-sm",
+        "min-w-0 gap-4 border-0 shadow-sm",
         span === "2" && "lg:col-span-2",
         span === "3" && "lg:col-span-3",
         rowSpan === "2" && "lg:row-span-2",

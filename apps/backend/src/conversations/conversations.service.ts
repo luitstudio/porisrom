@@ -1,10 +1,14 @@
 import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 
 import { PrismaService } from "../prisma/prisma.service";
+import { RealtimeGateway } from "../realtime/realtime.gateway";
 
 @Injectable()
 export class ConversationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly realtimeGateway: RealtimeGateway,
+  ) {}
 
   listMine(userId: string) {
     return this.prisma.db.conversation.findMany({
@@ -33,10 +37,27 @@ export class ConversationsService {
   }
 
   async sendMessage(userId: string, conversationId: string, body: string) {
-    await this.assertParticipant(userId, conversationId);
-    return this.prisma.db.message.create({
-      data: { conversationId, senderId: userId, body },
+    const conversation = await this.assertParticipant(userId, conversationId);
+    const recipientId =
+      conversation.connection.requesterId === userId
+        ? conversation.connection.receiverId
+        : conversation.connection.requesterId;
+    const result = await this.prisma.db.$transaction(async (tx) => {
+      const created = await tx.message.create({
+        data: { conversationId, senderId: userId, body },
+      });
+      const notification = await tx.notification.create({
+        data: {
+          userId: recipientId,
+          type: "message_received",
+          message: "You received a new message.",
+        },
+      });
+      return { message: created, notification };
     });
+    void this.realtimeGateway.emitMessageCreated(result.message);
+    this.realtimeGateway.emitNotificationCreated(result.notification);
+    return result.message;
   }
 
   private async assertParticipant(userId: string, conversationId: string) {

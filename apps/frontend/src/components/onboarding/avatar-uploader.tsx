@@ -1,80 +1,53 @@
 "use client";
 
 import * as React from "react";
-import { Camera, User } from "lucide-react";
+import { BriefcaseBusiness, Code2, Palette, UserRound } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
-type AvatarUploaderProps = {
+const AVATARS = [
+  { id: "classic", label: "Classic", Icon: UserRound, className: "bg-violet-100 text-violet-700" },
+  { id: "creative", label: "Creative", Icon: Palette, className: "bg-rose-100 text-rose-700" },
+  { id: "builder", label: "Builder", Icon: Code2, className: "bg-sky-100 text-sky-700" },
+  { id: "professional", label: "Professional", Icon: BriefcaseBusiness, className: "bg-emerald-100 text-emerald-700" },
+] as const;
+
+type AvatarSelectorProps = {
   label?: string;
-  onFileChange?: (file: File | null) => void;
+  onAvatarChange?: (avatarId: string) => void;
 };
 
-export function AvatarUploader({
-  label = "Upload your profile photo",
-  onFileChange,
-}: AvatarUploaderProps) {
-  const [preview, setPreview] = React.useState<string | null>(null);
-  const [isDragging, setIsDragging] = React.useState(false);
-  const inputRef = React.useRef<HTMLInputElement>(null);
+export function AvatarSelector({ label = "Choose your avatar", onAvatarChange }: AvatarSelectorProps) {
+  const [selectedAvatar, setSelectedAvatar] = React.useState("classic");
 
-  function handleFile(file: File | undefined | null) {
-    if (!file) return;
-    const url = URL.createObjectURL(file);
-    setPreview((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return url;
-    });
-    onFileChange?.(file);
+  function selectAvatar(avatarId: string) {
+    setSelectedAvatar(avatarId);
+    onAvatarChange?.(avatarId);
   }
 
   return (
     <div className="flex flex-col items-center gap-3">
-      <button
-        type="button"
-        onClick={() => inputRef.current?.click()}
-        onDragOver={(e) => {
-          e.preventDefault();
-          setIsDragging(true);
-        }}
-        onDragLeave={() => setIsDragging(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setIsDragging(false);
-          handleFile(e.dataTransfer.files?.[0]);
-        }}
-        aria-label={label}
-        className={cn(
-          "group relative flex size-24 items-center justify-center overflow-hidden rounded-full border-2 border-dashed border-border bg-secondary text-muted-foreground transition-colors",
-          isDragging && "border-primary bg-accent",
-          preview && "border-solid border-transparent"
-        )}
-      >
-        {preview ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={preview}
-            alt="Profile preview"
-            className="size-full object-cover"
-          />
-        ) : (
-          <User className="size-8" />
-        )}
-
-        <span className="absolute inset-0 flex items-center justify-center bg-foreground/0 opacity-0 transition-opacity group-hover:bg-foreground/40 group-hover:opacity-100">
-          <Camera className="size-5 text-white" />
-        </span>
-      </button>
-
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        className="sr-only"
-        onChange={(e) => handleFile(e.target.files?.[0])}
-      />
-
-      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="text-center text-xs text-muted-foreground">{label}</p>
+      <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label={label}>
+        {AVATARS.map(({ id, label: avatarLabel, Icon, className }) => (
+          <button
+            key={id}
+            type="button"
+            role="radio"
+            aria-checked={selectedAvatar === id}
+            aria-label={`Choose ${avatarLabel} avatar`}
+            onClick={() => selectAvatar(id)}
+            className={cn(
+              "flex min-h-11 min-w-11 items-center justify-center rounded-xl border-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              className,
+              selectedAvatar === id ? "border-primary" : "border-transparent opacity-70 hover:opacity-100",
+            )}
+          >
+            <Icon className="size-5" aria-hidden="true" />
+          </button>
+        ))}
+      </div>
+      <p className="text-center text-xs text-muted-foreground">Icon avatars only — photo uploads are not available in V1.</p>
     </div>
   );
 }

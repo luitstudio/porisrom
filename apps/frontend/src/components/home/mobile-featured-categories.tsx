@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { CANONICAL_CATEGORIES, categoryHref } from "@/lib/service-categories";
 
 type Category = {
   icon: LucideIcon;
@@ -27,10 +28,10 @@ type Category = {
 const CATEGORIES: Category[] = [
   {
     icon: Code2,
-    title: "Programming",
+    title: CANONICAL_CATEGORIES.webDeveloper.name,
     subtitle: "Web & apps",
     freelancerCount: "2.4K Freelancers",
-    href: "/categories/web-developers",
+    href: categoryHref(CANONICAL_CATEGORIES.webDeveloper),
     image: "/illustrations/developer.webp",
     imageAlt: "Illustration of a web developer working on code",
     tintClassName: "bg-[#5B4CFF]/[0.07]",
@@ -38,10 +39,10 @@ const CATEGORIES: Category[] = [
   },
   {
     icon: Clapperboard,
-    title: "Video Editing",
+    title: CANONICAL_CATEGORIES.videoEditor.name,
     subtitle: "Reels & films",
     freelancerCount: "1.8K Freelancers",
-    href: "/categories/video-editor",
+    href: categoryHref(CANONICAL_CATEGORIES.videoEditor),
     image: "/illustrations/videoediting.webp",
     imageAlt: "Illustration of a video editor editing a timeline",
     tintClassName: "bg-[#5B4CFF]/[0.08]",
@@ -49,10 +50,10 @@ const CATEGORIES: Category[] = [
   },
   {
     icon: PenTool,
-    title: "Graphic Design",
+    title: CANONICAL_CATEGORIES.graphicDesigner.name,
     subtitle: "Logos & branding",
     freelancerCount: "3.1K Freelancers",
-    href: "/categories/graphic-designer",
+    href: categoryHref(CANONICAL_CATEGORIES.graphicDesigner),
     image: "/illustrations/graphicdesigner.webp",
     imageAlt: "Illustration of a graphic designer creating visuals",
     tintClassName: "bg-[#F6CDAF]/[0.1]",
@@ -60,10 +61,10 @@ const CATEGORIES: Category[] = [
   },
   {
     icon: Camera,
-    title: "Photography",
+    title: CANONICAL_CATEGORIES.videographerPhotographer.name,
     subtitle: "Shoots & retouching",
     freelancerCount: "1.2K Freelancers",
-    href: "/categories/photographer",
+    href: categoryHref(CANONICAL_CATEGORIES.videographerPhotographer),
     image: "/illustrations/camera.webp",
     imageAlt: "Illustration of a photographer holding a camera",
     tintClassName: "bg-[#F7E6CA]/[0.11]",
@@ -71,10 +72,10 @@ const CATEGORIES: Category[] = [
   },
   {
     icon: Megaphone,
-    title: "Marketing",
+    title: CANONICAL_CATEGORIES.socialMediaMarketer.name,
     subtitle: "SEO & social",
     freelancerCount: "1.5K Freelancers",
-    href: "/categories/social-media",
+    href: categoryHref(CANONICAL_CATEGORIES.socialMediaMarketer),
     image: "/illustrations/social-media.webp",
     imageAlt: "Illustration of a social media marketer reviewing analytics",
     tintClassName: "bg-[#F7C7DD]/[0.1]",
@@ -82,10 +83,10 @@ const CATEGORIES: Category[] = [
   },
   {
     icon: PenLine,
-    title: "Writing",
+    title: CANONICAL_CATEGORIES.contentWriter.name,
     subtitle: "Content & copy",
     freelancerCount: "2.0K Freelancers",
-    href: "/categories/content-writer",
+    href: categoryHref(CANONICAL_CATEGORIES.contentWriter),
     image: "/illustrations/content.webp",
     imageAlt: "Illustration of a content writer working on a document",
     tintClassName: "bg-[#EBD9BC]/[0.1]",
@@ -99,7 +100,7 @@ export function MobileFeaturedCategories() {
       <div className="flex items-center justify-between">
         <h2 className="text-base font-semibold text-foreground">Browse by Category</h2>
         <Link
-          href="/categories"
+          href="/freelancers"
           className="min-h-11 px-2 py-2 text-xs font-medium text-primary"
         >
           View all

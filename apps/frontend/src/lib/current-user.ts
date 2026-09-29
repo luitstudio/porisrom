@@ -10,12 +10,18 @@ export type CurrentUser = {
   profileCompleteness: number;
 };
 
+function resolveProfileCompleteness(user: CurrentUser) {
+  if (user.isOnboarded) return 100;
+  return Math.max(0, Math.min(100, user.profileCompleteness));
+}
+
 export async function getCurrentUser(): Promise<CurrentUser | null> {
   const session = await auth();
   if (!session?.accessToken) return null;
 
   try {
-    return await backendFetch<CurrentUser>("/auth/me", { accessToken: session.accessToken });
+    const user = await backendFetch<CurrentUser>("/auth/me", { accessToken: session.accessToken });
+    return { ...user, profileCompleteness: resolveProfileCompleteness(user) };
   } catch {
     return null;
   }

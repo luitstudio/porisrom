@@ -41,6 +41,7 @@ export default async function FreelancerConversationPage({
       <ChatThread
         conversationId={id}
         viewerUserId={session.user.id}
+        accessToken={session.accessToken}
         otherPartyName={other.name}
         initialMessages={messages}
       />

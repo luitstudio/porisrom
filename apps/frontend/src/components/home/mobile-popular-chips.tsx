@@ -1,14 +1,16 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
+import { CANONICAL_CATEGORIES, categoryHref } from "@/lib/service-categories";
+
 const SERVICES = [
-  { label: "Programming", href: "/categories/web-development" },
-  { label: "Video Editing", href: "/categories/video-editor" },
-  { label: "Graphic Design", href: "/categories/graphic-designer" },
-  { label: "Photography", href: "/categories/photographer" },
-  { label: "Marketing", href: "/categories/social-media" },
-  { label: "Writing", href: "/categories/content-writer" },
-  { label: "Voice Over", href: "/categories/voice-over-artist" },
+  { label: "Web Development", href: categoryHref(CANONICAL_CATEGORIES.webDeveloper) },
+  { label: "Video Editing", href: categoryHref(CANONICAL_CATEGORIES.videoEditor) },
+  { label: "Graphic Design", href: categoryHref(CANONICAL_CATEGORIES.graphicDesigner) },
+  { label: "Photography", href: categoryHref(CANONICAL_CATEGORIES.videographerPhotographer) },
+  { label: "Marketing", href: categoryHref(CANONICAL_CATEGORIES.socialMediaMarketer) },
+  { label: "Writing", href: categoryHref(CANONICAL_CATEGORIES.contentWriter) },
+  { label: "Voice Over", href: categoryHref(CANONICAL_CATEGORIES.voiceOverArtist) },
 ];
 
 export function MobilePopularChips() {
@@ -16,7 +18,7 @@ export function MobilePopularChips() {
     <section>
       <div className="flex items-center justify-between">
         <h2 className="text-base font-semibold text-foreground">Popular Services</h2>
-        <Link href="/categories" className="min-h-11 px-2 py-2 text-xs font-medium text-primary">
+        <Link href="/freelancers" className="min-h-11 px-2 py-2 text-xs font-medium text-primary">
           See all
         </Link>
       </div>
@@ -32,7 +34,7 @@ export function MobilePopularChips() {
           </Link>
         ))}
         <Link
-          href="/categories"
+          href="/freelancers"
           className="flex h-10 shrink-0 snap-start items-center gap-1 rounded-full border border-primary/15 bg-white px-4 text-sm font-medium text-foreground"
         >
           View All

@@ -14,9 +14,6 @@ export default function proxy(request: NextRequest) {
   if (!hasSession && !isLoginPage) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
-  if (hasSession && isLoginPage) {
-    return NextResponse.redirect(new URL("/", request.url));
-  }
   return NextResponse.next();
 }
 

@@ -4,13 +4,21 @@ import bcrypt from "bcryptjs";
 import { createPrismaClient } from "@porishrom/database";
 
 async function main() {
+  const email = process.env.ADMIN_EMAIL?.trim();
+  const password = process.env.ADMIN_PASSWORD;
+
+  if (!email || !password) {
+    throw new Error("ADMIN_EMAIL and ADMIN_PASSWORD are required");
+  }
+  if (password.length < 8) {
+    throw new Error("ADMIN_PASSWORD must be at least 8 characters");
+  }
+
   const db = createPrismaClient();
-  const email = process.env.ADMIN_EMAIL ?? "admin@porishrom.local";
-  const password = process.env.ADMIN_PASSWORD ?? "ChangeMe123!";
 
   const existing = await db.user.findUnique({ where: { email } });
   if (existing) {
-    console.log(`Admin already exists: ${email}`);
+    console.log("Admin already exists");
     await db.$disconnect();
     return;
   }
@@ -26,7 +34,7 @@ async function main() {
     },
   });
 
-  console.log(`Admin created: ${email} / ${password}`);
+  console.log("Admin created successfully");
   await db.$disconnect();
 }
 

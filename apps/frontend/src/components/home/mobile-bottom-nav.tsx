@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { Compass, Home, MessageCircle, Search, User } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { discoveryNavigationForRole } from "@/lib/discovery-navigation";
 
 type MobileBottomNavProps = {
   isAuthenticated?: boolean;
@@ -12,18 +14,23 @@ type MobileBottomNavProps = {
 
 export function MobileBottomNav({ isAuthenticated = false }: MobileBottomNavProps) {
   const pathname = usePathname();
+  const { data: session } = useSession();
 
   if (!isAuthenticated) {
     return null;
   }
 
+  const discovery = discoveryNavigationForRole(session?.user?.role);
+  const messagesHref = session?.user?.role === "client"
+    ? "/dashboard/client/messages"
+    : "/dashboard/freelancer/messages";
   const items = [
     { label: "Home", href: "/", icon: Home },
-    { label: "Browse", href: "/categories", icon: Compass },
-    { label: "Search", href: "/freelancers", icon: Search },
+    { label: "Browse", href: "/freelancers", icon: Compass },
+    { label: "Search", href: discovery.href, icon: Search },
     {
       label: "Messages",
-      href: "/dashboard/freelancer/messages",
+      href: messagesHref,
       icon: MessageCircle,
     },
     {

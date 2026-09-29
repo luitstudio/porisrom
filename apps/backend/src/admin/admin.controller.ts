@@ -10,6 +10,8 @@ import { BroadcastNotificationDto } from "./dto/broadcast-notification.dto";
 import { SendDirectMessageDto } from "./dto/send-direct-message.dto";
 import { SetBadgeDto } from "./dto/set-badge.dto";
 import { SetBlockedDto } from "./dto/set-blocked.dto";
+import { ReviewIdentityDocumentDto } from "./dto/review-identity-document.dto";
+import { IdentityDocumentService } from "../kyc/identity-document.service";
 import { AdminActionLogInterceptor } from "./interceptors/admin-action-log.interceptor";
 
 @Controller("admin")
@@ -17,11 +19,34 @@ import { AdminActionLogInterceptor } from "./interceptors/admin-action-log.inter
 @Roles("admin")
 @UseInterceptors(AdminActionLogInterceptor)
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminService: AdminService,
+    private readonly identityDocumentService: IdentityDocumentService,
+  ) {}
 
   @Get("users")
   listUsers(@Query("role") role?: string) {
     return this.adminService.listUsers({ role });
+  }
+
+  @Get("users/:id/profile")
+  getProfileForReview(@Param("id") id: string) {
+    return this.adminService.getProfileForReview(id);
+  }
+
+  @Get("users/:id/identity-document")
+  getIdentityDocument(@Param("id") id: string) {
+    return this.identityDocumentService.signedUrlForAdmin(id);
+  }
+
+  @Patch("users/:id/identity-document/review")
+  @LogAdminAction("review_identity_document")
+  reviewIdentityDocument(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param("id") id: string,
+    @Body() dto: ReviewIdentityDocumentDto,
+  ) {
+    return this.identityDocumentService.reviewForAdmin(user.userId, id, dto.status);
   }
 
   @Patch("users/:id/approve")
@@ -52,6 +77,17 @@ export class AdminController {
   @LogAdminAction("soft_delete_user")
   softDelete(@Param("id") id: string) {
     return this.adminService.softDeleteUser(id);
+  }
+
+  @Get("reviews")
+  listReviews() {
+    return this.adminService.listReviews();
+  }
+
+  @Delete("reviews/:id")
+  @LogAdminAction("remove_review")
+  removeReview(@Param("id") id: string) {
+    return this.adminService.removeReview(id);
   }
 
   @Get("conversations")

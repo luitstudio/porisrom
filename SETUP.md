@@ -1,150 +1,132 @@
-# Porishrom — local setup
+# Porishrom local setup
 
-Step-by-step guide to get the whole monorepo running on a fresh machine. Three apps, one Postgres database.
+This guide starts the local marketplace, admin panel, backend, and PostgreSQL.
+For production deployment requirements, see [README.md](README.md).
 
-## 1. Install prerequisites
+## 1. Prerequisites
 
-- **Git**
-- **Node.js 20+** (check with `node -v`)
-- **pnpm** — enable via corepack (comes with Node): `corepack enable`
-- **Docker Desktop** — used for Postgres. Must be running before you start the backend (this is the #1 thing that trips people up — if the backend can't connect to the DB, check Docker Desktop is actually open).
+- Git
+- Node.js 20 or later (`node -v`)
+- pnpm 9.0.0 (`corepack enable`)
+- Docker Desktop, running locally for PostgreSQL
 
-## 2. Clone the repo
+## 2. Install dependencies
 
-```
+```sh
 git clone https://github.com/luitstudio/porisrom.git
 cd porisrom
-```
-
-## 3. Install dependencies
-
-From the repo root (installs for all three apps + packages at once):
-
-```
 pnpm install
 ```
 
-## 4. Set up environment files
+## 3. Create local environment files
 
-Each app has its own `.env`, none of which are committed (they're gitignored on purpose). Copy each example and fill it in:
+Copy each example to its local `.env` file:
 
-```
+```sh
 cp packages/database/.env.example packages/database/.env
 cp apps/backend/.env.example apps/backend/.env
 cp apps/frontend/.env.example apps/frontend/.env
 cp apps/admin/.env.example apps/admin/.env
 ```
 
-(On Windows PowerShell, use `Copy-Item` instead of `cp` if `cp` isn't available.)
+In Windows PowerShell, use `Copy-Item` if preferred.
 
-The defaults in each `.env.example` already match the Docker Postgres setup below, so for local dev you mostly don't need to change values — **except**:
+The example localhost URLs match the Docker database and local applications.
+For local authentication, replace the backend JWT placeholders and frontend
+`AUTH_SECRET` with private random values. Do not reuse those values in
+production.
 
-- `apps/backend/.env` → `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET`: change these to any random string (they just need to be non-empty and secret-ish for local dev — e.g. run `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` twice and paste the results in).
-- `apps/frontend/.env` → `AUTH_SECRET`: same idea, generate a random string the same way.
+Cloudinary variables are only needed when exercising the private KYC upload
+flow. Keep `CLOUDINARY_API_KEY` and `CLOUDINARY_API_SECRET` local and private;
+they are never frontend variables.
 
-## 5. Start Postgres
+## 4. Start PostgreSQL
 
-```
+```sh
 docker compose up -d postgres
-```
-
-This runs Postgres in a container on port **5433** (not the default 5432, to avoid clashing with any Postgres you might already have running locally). Data persists in a Docker volume across restarts.
-
-Check it's up:
-
-```
 docker ps
 ```
 
-You should see `porisrom-postgres-1` with status `Up`.
+The local database is exposed on port `5433` and its Docker volume persists
+across restarts.
 
-## 6. Generate the Prisma client and run migrations
+## 5. Generate Prisma and apply local migrations
 
-```
-cd packages/database
-pnpm exec prisma generate
-pnpm exec prisma migrate dev
-cd ../..
-```
-
-This creates all the tables. `prisma migrate dev` is safe to re-run — it just applies any migrations you don't have yet.
-
-## 7. Build the database package
-
-The backend imports `@porishrom/database` as a built package, not straight from source, so build it once:
-
-```
+```sh
+pnpm --filter @porishrom/database generate
+pnpm --filter @porishrom/database migrate:dev
 pnpm --filter @porishrom/database build
 ```
 
-(Re-run this any time `packages/database/prisma/schema.prisma` changes and you've pulled new migrations.)
+`migrate:dev` is for local development only. Production uses:
 
-## 8. Seed data
-
-**Categories/skills** (needed for signup/profile forms to have options):
-
-```
-cd packages/database
-pnpm seed
-cd ../..
+```sh
+pnpm --filter @porishrom/database migrate:deploy
 ```
 
-**An admin account** (needed to log into the admin console):
+Never run `prisma migrate reset`, `prisma migrate dev`, or delete a database or
+volume against a production database.
 
+## 6. Seed catalog data and optional local demos
+
+Categories and skills are required catalog data for onboarding and discovery:
+
+```sh
+pnpm --filter @porishrom/database seed
 ```
-cd apps/backend
-pnpm build
-pnpm seed:admin
-cd ../..
+
+The normal seed does not require demo accounts. Optional launch/demo accounts
+are enabled only by setting `SEED_LAUNCH_DATA=true` and a local-only
+`LAUNCH_DEMO_PASSWORD` in `packages/database/.env`. Do not enable this flag or
+use the demo password as a production credential.
+
+To seed a local admin account, first set `ADMIN_EMAIL` and `ADMIN_PASSWORD` in
+`apps/backend/.env`, then run:
+
+```sh
+pnpm --filter @porishrom/backend build
+pnpm --filter @porishrom/backend seed:admin
 ```
 
-This creates `admin@porishrom.local` / `ChangeMe123!` — change the password later via the admin console, or override it by setting `ADMIN_EMAIL` / `ADMIN_PASSWORD` env vars before running the command.
+There is no default admin email or password. The seed fails closed if either
+credential is missing and does not print the password.
 
-## 9. Run everything
+## 7. Run the applications
 
-From the repo root:
-
-```
+```sh
 pnpm dev
 ```
 
-This starts all three apps at once (via Turborepo) with hot-reload:
+| Application | Local URL |
+| --- | --- |
+| Backend API | http://localhost:4000 |
+| Marketplace | http://localhost:3000 |
+| Admin panel | http://localhost:3001 |
 
-| App | URL |
-|---|---|
-| Backend (NestJS API) | http://localhost:4000 |
-| Frontend (main marketplace app) | http://localhost:3000 |
-| Admin console | http://localhost:3001 |
+## 8. Verify local services
 
-Leave this running in a terminal. Ctrl+C to stop everything.
-
-## 10. Verify it's working
-
-```
-curl http://localhost:4000/health        # {"status":"ok"}
+```sh
+curl http://localhost:4000/health
+curl http://localhost:4000/health/ready
 ```
 
-Then just open http://localhost:3000 in a browser — sign up a new account (freelancer or client) and go through onboarding, or log into http://localhost:3001 with the admin account from step 8.
+`/health` verifies backend process liveness. `/health/ready` performs a minimal
+PostgreSQL readiness check.
 
-## Project structure / where to look
+## Common local issues
 
-- `docs/PRD.md`, `docs/data-model.md`, `docs/api-design.md`, `docs/roadmap.md` — read these first. They're the source of truth for what's built, what each API endpoint does, and what's still left (see the Phase 10 backlog in `roadmap.md`).
-- `apps/backend` — NestJS API, owns the database and auth entirely.
-- `apps/frontend` — the public marketplace (freelancers/clients).
-- `apps/admin` — internal admin console.
-- `packages/database` — Prisma schema + client, imported only by `apps/backend`.
+- Backend cannot connect to PostgreSQL: ensure Docker Desktop is running and
+  `docker compose up -d postgres` completed successfully.
+- Prisma migration errors: ensure `packages/database/.env` and
+  `apps/backend/.env` reference the same local `DATABASE_URL` (port `5433`).
+- Cannot find `@porishrom/database`: rerun
+  `pnpm --filter @porishrom/database build`.
+- Stale Next.js behavior: stop local dev servers, remove the relevant `.next`
+  directory, and restart `pnpm dev`.
 
-## Common issues
+## Production reminder
 
-- **Backend can't connect to Postgres** → Docker Desktop isn't running, or the container stopped. Run `docker compose up -d postgres` again.
-- **`Cannot find module '@porishrom/database'`** → you skipped step 7 (build the database package).
-- **Something feels stale / weird redirect loops / random 404s on routes that should exist** → kill the dev servers and delete the Next.js cache, then restart:
-  ```
-  rm -rf apps/frontend/.next apps/admin/.next
-  pnpm dev
-  ```
-- **Prisma migration errors** → make sure `packages/database/.env` and `apps/backend/.env` both point at the same `DATABASE_URL` (port 5433).
-
-## Git workflow
-
-Default branch is `main`. Please branch off it for changes (`git checkout -b your-name/feature`) and open a PR rather than pushing straight to `main`.
+Production must use HTTPS, real production secrets, an HTTPS backend URL for
+both frontend backend URL variables, and `migrate:deploy`. Follow the complete
+runbook in [README.md](README.md); do not copy local Docker credentials or
+example secrets to production.

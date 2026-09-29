@@ -53,6 +53,14 @@ enum VerificationStatus {
   rejected
 }
 
+// This is a manual document-review state. It is deliberately separate from
+// public profile verification and does not represent Aadhaar authentication.
+enum IdentityDocumentReviewStatus {
+  pending
+  approved
+  rejected
+}
+
 model FreelancerProfile {
   id                 String             @id @default(cuid())
   userId             String             @unique
@@ -73,6 +81,20 @@ model FreelancerProfile {
   categories     FreelancerCategory[]
   skills         FreelancerSkill[]
   portfolioItems PortfolioItem[]
+  identityDocument IdentityDocument?
+}
+
+model IdentityDocument {
+  id                  String                       @id @default(cuid())
+  freelancerProfileId String                       @unique
+  freelancerProfile   FreelancerProfile            @relation(fields: [freelancerProfileId], references: [id], onDelete: Cascade)
+  status              IdentityDocumentReviewStatus @default(pending)
+  cloudinaryPublicId  String
+  cloudinaryAssetId   String
+  reviewedAt          DateTime?
+  reviewedBy          String?
+  createdAt           DateTime                     @default(now())
+  updatedAt           DateTime                     @updatedAt
 }
 
 model CompanyProfile {

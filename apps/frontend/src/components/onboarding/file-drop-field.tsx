@@ -59,13 +59,13 @@ export function FileDropField({
           addFiles(e.dataTransfer.files);
         }}
         className={cn(
-          "flex w-full items-center justify-between gap-3 rounded-xl border-2 border-dashed border-border bg-secondary/60 px-4 py-3 text-left transition-colors hover:bg-secondary",
+          "flex min-h-14 w-full min-w-0 flex-col items-stretch justify-between gap-3 rounded-xl border-2 border-dashed border-border bg-secondary/60 px-3 py-3 text-left transition-colors hover:bg-secondary min-[375px]:flex-row min-[375px]:items-center min-[375px]:px-4",
           isDragging && "border-primary bg-accent"
         )}
       >
-        <span className="flex items-center gap-2 text-sm text-muted-foreground">
-          <UploadCloud className="size-4" />
-          Drag &amp; drop or click to upload
+        <span className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
+          <UploadCloud className="size-4 shrink-0" />
+          <span className="min-w-0 break-words">Drag &amp; drop or click to upload</span>
         </span>
         <span className="rounded-full bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground">
           Upload
@@ -101,7 +101,7 @@ export function FileDropField({
                 type="button"
                 aria-label={`Remove ${file.name}`}
                 onClick={() => removeFile(index)}
-                className="shrink-0 text-muted-foreground hover:text-foreground"
+                className="flex size-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <X className="size-3.5" />
               </button>

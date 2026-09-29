@@ -9,7 +9,7 @@ Import the existing GitHub repository into Vercel with these settings:
 | Install Command | `pnpm install --frozen-lockfile` |
 | Build Command | `pnpm --filter @porishrom/frontend build` |
 | Output Directory | Leave the Next.js default (`.next`) |
-| Node.js Version | `22.x` |
+| Node.js Version | `20.x` or newer supported runtime |
 | Include source files outside the Root Directory | Enabled |
 
 The repository pins `pnpm@9.0.0` in its root `packageManager` field. The
@@ -25,13 +25,14 @@ Configure these for the Vercel environments you deploy (Preview and/or Productio
 - `AUTH_SECRET`: a newly generated, private random secret of at least 32 bytes.
   Required now because Auth.js is used by the public pages and proxy.
 - `AUTH_TRUST_HOST`: `true`.
-- `BACKEND_URL`: leave unset for this frontend preview. Once a backend is hosted,
-  set its real HTTPS origin. The existing server-only helper currently defaults
-  to localhost when unset; no backend is expected there on Vercel.
+- `BACKEND_URL`: required for production server-side API requests; set it to the real HTTPS API origin.
+- `NEXT_PUBLIC_BACKEND_URL`: required for browser API and Socket.IO usage; set it to the same real HTTPS API origin. This value is public and must not contain secrets.
 
-Do not copy the example secret into Vercel. Do not prefix these variables with
-`NEXT_PUBLIC_`. Real `.env` files remain ignored. No database variables are
-needed by the frontend.
+Do not copy the example secret into Vercel. Do not prefix `AUTH_SECRET` or
+`BACKEND_URL` with `NEXT_PUBLIC_`; only `NEXT_PUBLIC_BACKEND_URL` is public.
+Real `.env` files remain ignored. No database variables are needed by the
+frontend. `localhost` is for local development only and is not a valid
+production backend URL.
 
 ## Preview limitations
 
@@ -41,11 +42,6 @@ be reached. Other failed page loads have a recovery link to the homepage.
 Live listings, profiles, leaderboards, login/signup, onboarding, connections,
 messages, work assignments, reviews, and payment verification need the existing
 backend. Existing design/demo content is unchanged; no mock API is added.
-
-Known existing frontend issues: onboarding lint reports
-`react-hooks/set-state-in-effect` in `onboarding-wizard.tsx`; some navigation
-destinations (including `/jobs` and `/why-porisrom`) do not exist yet. These are
-outside the deployment checkpoint fixes.
 
 Reference: https://vercel.com/docs/monorepos and
 https://vercel.com/docs/functions/runtimes/node-js/node-js-versions.

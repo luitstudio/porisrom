@@ -5,41 +5,42 @@ export type Step = {
   label: string;
 };
 
+export type TaxonomyItem = {
+  id: string;
+  name: string;
+};
+
 export type FreelancerProfileData = {
-  avatarFile: File | null;
   name: string;
   address: string;
   state: string;
   district: string;
   language: string;
   aadhaarFiles: File[];
-  professions: string[];
+  professions: TaxonomyItem[];
   experience: string;
   about: string;
 };
 
 export type CustomerProfileData = {
-  logoFile: File | null;
   companyName: string;
   address: string;
   state: string;
   certificateFiles: File[];
   aadhaarFiles: File[];
-  categories: string[];
+  categories: TaxonomyItem[];
   about: string;
 };
 
 export type PortfolioData = {
-  files: File[];
   links: string[];
-  skills: string[];
+  skills: TaxonomyItem[];
 };
 
 export const EMPTY_FREELANCER_PROFILE: FreelancerProfileData = {
-  avatarFile: null,
   name: "",
   address: "",
-  state: "",
+  state: "Assam",
   district: "",
   language: "",
   aadhaarFiles: [],
@@ -49,10 +50,9 @@ export const EMPTY_FREELANCER_PROFILE: FreelancerProfileData = {
 };
 
 export const EMPTY_CUSTOMER_PROFILE: CustomerProfileData = {
-  logoFile: null,
   companyName: "",
   address: "",
-  state: "",
+  state: "Assam",
   certificateFiles: [],
   aadhaarFiles: [],
   categories: [],
@@ -60,7 +60,6 @@ export const EMPTY_CUSTOMER_PROFILE: CustomerProfileData = {
 };
 
 export const EMPTY_PORTFOLIO: PortfolioData = {
-  files: [],
   links: [""],
   skills: [],
 };

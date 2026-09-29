@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 
 import { BackendApiError } from "@/lib/backend-api";
-import { loginAdmin } from "@/lib/session";
+import { loginAdmin, logoutAdmin } from "@/lib/session";
 
 export type LoginState = { error?: string };
 
@@ -16,6 +16,8 @@ export async function login(_prevState: LoginState, formData: FormData): Promise
   }
 
   try {
+    // Login is the recovery boundary for stale, expired, or invalid admin cookies.
+    await logoutAdmin();
     await loginAdmin(email, password);
   } catch (err) {
     if (err instanceof BackendApiError) {

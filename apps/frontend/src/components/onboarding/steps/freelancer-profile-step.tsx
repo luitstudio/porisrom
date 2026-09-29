@@ -1,9 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { Award, Briefcase, Camera, FileText, MapPin, User } from "lucide-react";
+import { Award, Briefcase, Camera, CircleCheck, Clock3, FileText, MapPin, User } from "lucide-react";
 
-import { AvatarUploader } from "@/components/onboarding/avatar-uploader";
+import { AvatarSelector } from "@/components/onboarding/avatar-uploader";
 import { BentoCard } from "@/components/onboarding/bento-card";
 import { FileDropField } from "@/components/onboarding/file-drop-field";
 import { MultiSelectTags } from "@/components/onboarding/multi-select-tags";
@@ -19,28 +19,41 @@ import {
 import {
   EXPERIENCE_RANGES,
   LANGUAGES,
-  PROFESSION_CATEGORIES,
-  STATE_DISTRICTS,
-  STATES,
 } from "@/lib/onboarding-data";
-import type { FreelancerProfileData } from "@/lib/onboarding-types";
+import { ASSAM_DISTRICTS } from "@/lib/assam-districts";
+import type { FreelancerProfileData, TaxonomyItem } from "@/lib/onboarding-types";
 
 type FreelancerProfileStepProps = {
   value: FreelancerProfileData;
   onChange: (value: FreelancerProfileData) => void;
   onValidityChange: (valid: boolean) => void;
+  categories: TaxonomyItem[];
+  identityDocumentStatus: "not_submitted" | "pending";
 };
 
 export function FreelancerProfileStep({
   value,
   onChange,
   onValidityChange,
+  categories,
+  identityDocumentStatus,
 }: FreelancerProfileStepProps) {
   function patch(next: Partial<FreelancerProfileData>) {
     onChange({ ...value, ...next });
   }
 
-  const districts = value.state ? STATE_DISTRICTS[value.state] ?? [] : [];
+  const categoryById = new Map(categories.map((category) => [category.id, category]));
+  const categoryLabels = Object.fromEntries(
+    categories.map((category) => [category.id, category.name]),
+  );
+
+  function categoriesForIds(ids: string[]) {
+    return ids.map((id) => {
+      const category = categoryById.get(id);
+      if (!category) throw new Error("Selected category is no longer available");
+      return category;
+    });
+  }
 
   React.useEffect(() => {
     onValidityChange(value.name.trim().length > 1 && value.professions.length > 0);
@@ -48,22 +61,33 @@ export function FreelancerProfileStep({
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-      <BentoCard title="Profile photo" icon={Camera} rowSpan="2">
-        <AvatarUploader onFileChange={(file) => patch({ avatarFile: file })} />
+      <BentoCard title="Choose your avatar" icon={Camera} rowSpan="2">
+        <AvatarSelector />
       </BentoCard>
 
       <BentoCard title="Personal information" icon={User} span="2">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Input
-            placeholder="Full name"
-            value={value.name}
-            onChange={(e) => patch({ name: e.target.value })}
-          />
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="freelancer-name" className="text-xs font-medium text-foreground">
+              Full name
+            </label>
+            <Input
+              id="freelancer-name"
+              placeholder="Full name"
+              value={value.name}
+              onChange={(e) => patch({ name: e.target.value })}
+              aria-invalid={value.name.length > 0 && value.name.trim().length < 2}
+              className="min-h-11"
+            />
+            {value.name.length > 0 && value.name.trim().length < 2 && (
+              <p className="text-xs text-destructive">Enter your full name.</p>
+            )}
+          </div>
           <Select
             value={value.language}
             onValueChange={(v) => patch({ language: v ?? "" })}
           >
-            <SelectTrigger className="w-full">
+            <SelectTrigger className="min-h-11 w-full">
               <SelectValue placeholder="Primary language" />
             </SelectTrigger>
             <SelectContent>
@@ -77,11 +101,17 @@ export function FreelancerProfileStep({
         </div>
         <FileDropField
           accept=".pdf"
-          multiple
-          onFilesChange={(files) => patch({ aadhaarFiles: files })}
+          onFilesChange={(files) => patch({ aadhaarFiles: files.slice(0, 1) })}
         />
         <p className="text-xs text-muted-foreground">
           Upload your Aadhaar — both sides, PDF format, max 1MB
+        </p>
+        <p className="text-xs leading-5 text-muted-foreground">
+          Identity Document Review — your document is reviewed manually by Porishrom for identity verification.
+        </p>
+        <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground" aria-live="polite">
+          {identityDocumentStatus === "pending" ? <Clock3 className="size-3.5 text-amber-600" /> : <CircleCheck className="size-3.5" />}
+          {identityDocumentStatus === "pending" ? "Pending review" : "Not submitted"}
         </p>
       </BentoCard>
 
@@ -90,33 +120,19 @@ export function FreelancerProfileStep({
           placeholder="Street, city"
           value={value.address}
           onChange={(e) => patch({ address: e.target.value })}
+          className="min-h-11"
         />
-        <div className="grid grid-cols-2 gap-3">
-          <Select
-            value={value.state}
-            onValueChange={(v) => patch({ state: v ?? "", district: "" })}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="State" />
-            </SelectTrigger>
-            <SelectContent>
-              {STATES.map((s) => (
-                <SelectItem key={s} value={s}>
-                  {s}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="grid grid-cols-1 gap-3 min-[430px]:grid-cols-2">
+          <Input value="Assam" readOnly aria-label="State" className="min-h-11" />
           <Select
             value={value.district}
             onValueChange={(v) => patch({ district: v ?? "" })}
-            disabled={!value.state}
           >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="District" />
+            <SelectTrigger className="min-h-11 w-full">
+              <SelectValue placeholder="Assam district" />
             </SelectTrigger>
             <SelectContent>
-              {districts.map((d) => (
+              {ASSAM_DISTRICTS.map((d) => (
                 <SelectItem key={d} value={d}>
                   {d}
                 </SelectItem>
@@ -128,11 +144,19 @@ export function FreelancerProfileStep({
 
       <BentoCard title="Skills" icon={Briefcase}>
         <MultiSelectTags
-          options={PROFESSION_CATEGORIES}
-          selected={value.professions}
-          onChange={(v) => patch({ professions: v })}
+          options={categories.map((category) => category.id)}
+          selected={value.professions.map((category) => category.id)}
+          onChange={(ids) =>
+            patch({ professions: categoriesForIds(ids) })
+          }
+          optionLabels={categoryLabels}
           placeholder="Select your professions"
         />
+        {value.professions.length === 0 && (
+          <p className="text-xs text-muted-foreground">
+            Select at least one category to continue.
+          </p>
+        )}
       </BentoCard>
 
       <BentoCard title="Experience" icon={Award}>
@@ -140,7 +164,7 @@ export function FreelancerProfileStep({
           value={value.experience}
           onValueChange={(v) => patch({ experience: v ?? "" })}
         >
-          <SelectTrigger className="w-full">
+          <SelectTrigger className="min-h-11 w-full">
             <SelectValue placeholder="Total experience" />
           </SelectTrigger>
           <SelectContent>
@@ -159,6 +183,7 @@ export function FreelancerProfileStep({
           rows={3}
           value={value.about}
           onChange={(e) => patch({ about: e.target.value })}
+          className="min-h-24"
         />
       </BentoCard>
     </div>

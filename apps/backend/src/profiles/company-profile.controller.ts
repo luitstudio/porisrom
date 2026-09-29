@@ -11,6 +11,13 @@ import { UpdateCompanyProfileDto } from "./dto/update-company-profile.dto";
 export class CompanyProfileController {
   constructor(private readonly companyProfileService: CompanyProfileService) {}
 
+  @Get("me")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("client")
+  getOwn(@CurrentUser() user: CurrentUserPayload) {
+    return this.companyProfileService.getOwnProfile(user.userId);
+  }
+
   @Get(":id")
   getPublic(@Param("id") id: string) {
     return this.companyProfileService.getPublicProfile(id);

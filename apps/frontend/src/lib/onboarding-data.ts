@@ -20,49 +20,11 @@ export const LANGUAGES = [
   "Kannada",
 ];
 
-export const PROFESSION_CATEGORIES = [
-  "Video Editor",
-  "Video Grapher & Photographer",
-  "Graphic Designer",
-  "Web Developer",
-  "Motion Designer",
-  "Drone Operator",
-  "Content Writer",
-  "Social Media Marketer",
-  "Voice Over Artist",
-];
-
-export const BUSINESS_CATEGORIES = [
-  "Retail & E-commerce",
-  "Marketing Agency",
-  "Tech Startup",
-  "Media & Studio",
-  "Consulting",
-  "Real Estate",
-  "Hospitality",
-  "Education",
-];
-
 export const EXPERIENCE_RANGES = [
   "Less than 1 year",
   "1–2 years",
   "3–5 years",
   "5+ years",
-];
-
-export const SKILL_SUGGESTIONS = [
-  "Photoshop",
-  "Premiere Pro",
-  "After Effects",
-  "Figma",
-  "SEO",
-  "Copywriting",
-  "React",
-  "Next.js",
-  "DaVinci Resolve",
-  "Lightroom",
-  "Illustrator",
-  "WordPress",
 ];
 
 export const ROLE_BENEFITS = {

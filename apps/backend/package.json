@@ -8,6 +8,7 @@
     "dev": "nest start --watch",
     "start": "node dist/main.js",
     "lint": "eslint \"{src,test}/**/*.ts\"",
+    "test": "vitest run",
     "type-check": "tsc --noEmit",
     "seed:admin": "node dist/scripts/seed-admin.js"
   },
@@ -18,24 +19,33 @@
     "@nestjs/jwt": "^11.0.0",
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.1.6",
+    "@nestjs/platform-socket.io": "11.1.6",
+    "@nestjs/websockets": "11.1.6",
     "@porishrom/database": "workspace:*",
     "bcryptjs": "^3.0.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
+    "cloudinary": "^2.11.0",
     "cookie-parser": "^1.4.7",
     "dotenv": "^17.4.2",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.2"
+    "rxjs": "^7.8.2",
+    "socket.io": "4.8.1"
   },
   "devDependencies": {
+    "@eslint/js": "9",
     "@nestjs/cli": "^11.0.10",
     "@types/bcryptjs": "^2.4.6",
     "@types/cookie-parser": "^1.4.9",
     "@types/express": "^5.0.3",
+    "@types/multer": "^2.2.0",
     "@types/node": "^20",
     "@types/passport-jwt": "^4.0.1",
-    "typescript": "^5"
+    "eslint": "9",
+    "typescript": "^5",
+    "typescript-eslint": "8",
+    "vitest": "3"
   }
 }

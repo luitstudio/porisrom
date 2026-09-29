@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { Activity, BadgeCheck, CircleDollarSign, ClipboardList, FileCheck2, Send, Star, XCircle } from "lucide-react";
 
 import {
   acceptDeliveryAction,
@@ -18,6 +19,10 @@ import {
   type WorkAssignment,
 } from "@/app/work-assignments/actions";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const DELIVERABLE_TYPES: { value: DeliverableType; label: string }[] = [
   { value: "drive_link", label: "Drive link" },
@@ -108,6 +113,7 @@ export function WorkAssignmentPanel({
   const [showRevisionRequestForm, setShowRevisionRequestForm] = React.useState(false);
   const [pending, setPending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [selectedCompletedId, setSelectedCompletedId] = React.useState<string | null>(null);
 
   const refresh = React.useCallback(async () => {
     try {
@@ -124,6 +130,11 @@ export function WorkAssignmentPanel({
   }, [refresh]);
 
   const active = assignments.find((a) => !TERMINAL_STATUSES.has(a.status)) ?? assignments[0] ?? null;
+  const completedAssignments = assignments.filter(({ status }) => status === "completed");
+  const selectedCompleted =
+    completedAssignments.find(({ id }) => id === selectedCompletedId) ??
+    completedAssignments[0] ??
+    null;
   const isCompany = viewerRole === "client";
   const isFreelancer = viewerRole === "freelancer";
 
@@ -146,7 +157,7 @@ export function WorkAssignmentPanel({
   }
 
   return (
-    <div className="mb-4 rounded-2xl border border-border bg-card p-4">
+    <Card className="mb-4"><CardContent className="p-4">
       <h2 className="text-sm font-semibold text-foreground">Work Assignment</h2>
 
       {!active || TERMINAL_STATUSES.has(active.status) ? (
@@ -159,15 +170,6 @@ export function WorkAssignmentPanel({
                   ` on ${formatDate(active.paymentVerification.verifiedAt)}`}
                 .
               </p>
-              <ReviewSection
-                assignment={active}
-                viewerUserId={viewerUserId}
-                otherPartyName={otherPartyName}
-                pending={pending}
-                onSubmit={(rating, comment) =>
-                  runAction(() => createReviewAction(active.id, rating, comment))
-                }
-              />
             </div>
           ) : (
             active && (
@@ -407,33 +409,129 @@ export function WorkAssignmentPanel({
         </div>
       )}
 
+      {selectedCompleted && (
+        <CompletedAssignmentsSection
+          assignments={completedAssignments}
+          selected={selectedCompleted}
+          viewerUserId={viewerUserId}
+          otherPartyName={otherPartyName}
+          pending={pending}
+          onSelect={setSelectedCompletedId}
+          onReview={(assignmentId, rating, comment) =>
+            runAction(() => createReviewAction(assignmentId, rating, comment))
+          }
+        />
+      )}
+
       {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
 
       {assignments.length > 0 && (
-        <details className="mt-4">
-          <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
-            Activity timeline
-          </summary>
-          <ul className="mt-2 flex flex-col gap-1.5">
+        <section className="mt-5 border-t border-border pt-4">
+          <div className="flex items-start gap-2">
+            <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md bg-accent text-accent-foreground"><Activity className="size-3.5" /></span>
+            <div><h3 className="text-sm font-semibold text-foreground">Activity timeline</h3>
+            <p className="mt-1 text-xs text-muted-foreground">Assignment updates in chronological order.</p>
+            </div></div>
+          <ol className="relative mt-4 ml-2 max-w-3xl border-l border-border/80">
             {assignments
               .flatMap((a) => a.events)
               .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
               .map((event) => (
-                <li key={event.id} className="text-xs text-muted-foreground">
-                  <span className="font-medium text-foreground">
+                <li key={event.id} className="relative pb-5 pl-5 last:pb-0"><TimelineMarker action={event.action} /><div className="max-w-2xl text-sm leading-5 text-foreground">
+                  <span className="font-medium text-muted-foreground">
                     {event.actorId === viewerUserId ? "You" : otherPartyName}
                   </span>{" "}
-                  {actionLabel(event.action)}
+                  <span className="font-medium text-foreground">{actionLabel(event.action)}</span>
                   {event.note && <span className="italic"> — &quot;{event.note}&quot;</span>}
-                  <span className="ml-1 text-muted-foreground/70">
+                  <span className="mt-1.5 block text-[11px] tracking-wide text-muted-foreground/85">
                     ({formatDateTime(event.createdAt)})
                   </span>
-                </li>
+                </div></li>
               ))}
-          </ul>
-        </details>
+          </ol>
+        </section>
       )}
-    </div>
+    </CardContent></Card>
+  );
+}
+
+function timelineEventMeta(action: string) {
+  if (["reject", "rejected", "cancelled", "payment_mismatch", "payment_disputed"].includes(action)) return { Icon: XCircle, className: "border-destructive/30 bg-destructive/10 text-destructive" };
+  if (["accept", "delivery_accepted", "payment_verified"].includes(action)) return { Icon: BadgeCheck, className: "border-success/30 bg-success/10 text-success" };
+  if (["submitted", "revision_requested"].includes(action)) return { Icon: Send, className: "border-primary/30 bg-primary/10 text-primary" };
+  if (["payment_claimed_paid", "payment_claimed_received"].includes(action)) return { Icon: CircleDollarSign, className: "border-primary/30 bg-primary/10 text-primary" };
+  if (["proposed", "revised", "request_modification", "cancel_requested"].includes(action)) return { Icon: ClipboardList, className: "border-primary/30 bg-primary/10 text-primary" };
+  if (action.includes("review")) return { Icon: Star, className: "border-primary/30 bg-primary/10 text-primary" };
+  if (action.includes("delivery")) return { Icon: FileCheck2, className: "border-primary/30 bg-primary/10 text-primary" };
+  return { Icon: Activity, className: "border-border bg-muted text-muted-foreground" };
+}
+
+function TimelineMarker({ action }: { action: string }) {
+  const { Icon, className } = timelineEventMeta(action);
+  const completed = action === "payment_verified";
+  return <span className={`absolute -left-2.5 top-0.5 flex size-5 items-center justify-center rounded-full border shadow-[0_0_0_3px_var(--card)] ${className} ${completed ? "ring-1 ring-success/30" : ""}`}><Icon className="size-3" /></span>;
+}
+
+function CompletedAssignmentsSection({
+  assignments,
+  selected,
+  viewerUserId,
+  otherPartyName,
+  pending,
+  onSelect,
+  onReview,
+}: {
+  assignments: WorkAssignment[];
+  selected: WorkAssignment;
+  viewerUserId: string;
+  otherPartyName: string;
+  pending: boolean;
+  onSelect: (id: string) => void;
+  onReview: (assignmentId: string, rating: number, comment?: string) => void;
+}) {
+  return (
+    <section className="mt-5 border-t border-border pt-4">
+      <h2 className="text-sm font-semibold text-foreground">Completed work</h2>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Select any completed assignment to view its details and review status.
+      </p>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        {assignments.map((assignment) => {
+          const reviewed = assignment.reviews.some(({ authorId }) => authorId === viewerUserId);
+          const selectedAssignment = assignment.id === selected.id;
+          return (
+            <Button
+              key={assignment.id}
+              type="button"
+              size="sm"
+              variant={selectedAssignment ? "default" : "outline"}
+              onClick={() => onSelect(assignment.id)}
+            >
+              {assignment.title} · {reviewed ? "Reviewed" : "Review"}
+            </Button>
+          );
+        })}
+      </div>
+
+      <Card className="mt-4 bg-secondary/50 py-0"><CardContent className="p-4">
+        <p className="font-medium text-foreground">{selected.title}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{selected.description}</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Budget: {formatMoney(selected.budgetAmount, selected.currency)}
+          {selected.paymentVerification?.verifiedAt &&
+            ` · Completed ${formatDate(selected.paymentVerification.verifiedAt)}`}
+        </p>
+        <ReviewSection
+          key={selected.id}
+          assignment={selected}
+          viewerUserId={viewerUserId}
+          otherPartyName={otherPartyName}
+          pending={pending}
+          onSubmit={(rating, comment) => onReview(selected.id, rating, comment)}
+        />
+      </CardContent></Card>
+    </section>
   );
 }
 
@@ -464,14 +562,14 @@ function CreateAssignmentForm({
         });
       }}
     >
-      <input
+      <Input
         required
         placeholder="Title"
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         className="h-10 rounded-lg border border-input bg-transparent px-3 text-sm text-foreground"
       />
-      <textarea
+      <Textarea
         required
         placeholder="Description"
         value={description}
@@ -480,7 +578,7 @@ function CreateAssignmentForm({
         className="rounded-lg border border-input bg-transparent px-3 py-2 text-sm text-foreground"
       />
       <div className="flex gap-2">
-        <input
+        <Input
           required
           type="number"
           min={0}
@@ -489,7 +587,7 @@ function CreateAssignmentForm({
           onChange={(e) => setBudgetAmount(e.target.value)}
           className="h-10 flex-1 rounded-lg border border-input bg-transparent px-3 text-sm text-foreground"
         />
-        <input
+        <Input
           type="date"
           value={dueDate}
           onChange={(e) => setDueDate(e.target.value)}
@@ -552,7 +650,7 @@ function DeliverablesList({ deliverables }: { deliverables: WorkAssignment["deli
 
   return (
     <div>
-      <h3 className="text-xs font-semibold text-foreground">Submitted files</h3>
+      <h3 className="text-xs font-semibold text-foreground">Submitted links</h3>
       <ul className="mt-1 flex flex-col gap-1">
         {deliverables
           .slice()
@@ -596,26 +694,20 @@ function SubmitDeliverableForm({
         onSubmit({ type, url, note: note || undefined });
       }}
     >
-      <select
-        value={type}
-        onChange={(e) => setType(e.target.value as DeliverableType)}
-        className="h-10 rounded-lg border border-input bg-transparent px-3 text-sm text-foreground"
-      >
-        {DELIVERABLE_TYPES.map((t) => (
-          <option key={t.value} value={t.value}>
-            {t.label}
-          </option>
-        ))}
-      </select>
-      <input
+      <p className="text-xs leading-5 text-muted-foreground">Provide a shareable link to the completed work. Files are not uploaded to Porishrom.</p>
+      <Select value={type} onValueChange={(value) => setType(value as DeliverableType)}>
+        <SelectTrigger className="h-10 w-full"><SelectValue /></SelectTrigger>
+        <SelectContent>{DELIVERABLE_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+      </Select>
+      <Input
         required
         type="url"
-        placeholder="https://..."
+        placeholder="Shareable deliverable URL (https://...)"
         value={url}
         onChange={(e) => setUrl(e.target.value)}
         className="h-10 rounded-lg border border-input bg-transparent px-3 text-sm text-foreground"
       />
-      <textarea
+      <Textarea
         placeholder="Note (optional)"
         value={note}
         onChange={(e) => setNote(e.target.value)}
@@ -679,7 +771,7 @@ function PaymentSection({
             else onClaimReceived(utr);
           }}
         >
-          <input
+          <Input
             required
             placeholder="Transaction ID / UTR"
             value={utr}
@@ -730,18 +822,11 @@ function ReviewSection({
       }}
     >
       <p className="text-sm font-medium text-foreground">Rate {otherPartyName}</p>
-      <select
-        value={rating}
-        onChange={(e) => setRating(Number(e.target.value))}
-        className="h-10 w-32 rounded-lg border border-input bg-transparent px-3 text-sm text-foreground"
-      >
-        {[5, 4, 3, 2, 1].map((n) => (
-          <option key={n} value={n}>
-            {n} / 5
-          </option>
-        ))}
-      </select>
-      <textarea
+      <Select value={String(rating)} onValueChange={(value) => setRating(Number(value))}>
+        <SelectTrigger className="h-10 w-32"><SelectValue /></SelectTrigger>
+        <SelectContent>{[5, 4, 3, 2, 1].map((n) => <SelectItem key={n} value={String(n)}>{n} / 5</SelectItem>)}</SelectContent>
+      </Select>
+      <Textarea
         placeholder="Comment (optional)"
         value={comment}
         onChange={(e) => setComment(e.target.value)}
@@ -779,20 +864,20 @@ function ReviseAssignmentForm({
         onSubmit({ title, description, budgetAmount: Number(budgetAmount), note: note || undefined });
       }}
     >
-      <input
+      <Input
         required
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         className="h-10 rounded-lg border border-input bg-transparent px-3 text-sm text-foreground"
       />
-      <textarea
+      <Textarea
         required
         value={description}
         onChange={(e) => setDescription(e.target.value)}
         rows={3}
         className="rounded-lg border border-input bg-transparent px-3 py-2 text-sm text-foreground"
       />
-      <input
+      <Input
         required
         type="number"
         min={0}
@@ -800,7 +885,7 @@ function ReviseAssignmentForm({
         onChange={(e) => setBudgetAmount(e.target.value)}
         className="h-10 rounded-lg border border-input bg-transparent px-3 text-sm text-foreground"
       />
-      <textarea
+      <Textarea
         placeholder="Note to the freelancer (optional)"
         value={note}
         onChange={(e) => setNote(e.target.value)}
@@ -840,7 +925,7 @@ function NoteForm({
         onSubmit(note);
       }}
     >
-      <textarea
+      <Textarea
         required
         placeholder={placeholder}
         value={note}

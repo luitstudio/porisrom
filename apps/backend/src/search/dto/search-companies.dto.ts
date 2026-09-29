@@ -4,6 +4,10 @@ import { IsBoolean, IsInt, IsOptional, IsString, Max, Min } from "class-validato
 export class SearchCompaniesDto {
   @IsOptional()
   @IsString()
+  keyword?: string;
+
+  @IsOptional()
+  @IsString()
   categoryId?: string;
 
   @IsOptional()

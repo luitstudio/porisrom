@@ -94,6 +94,33 @@ export type WorkAssignment = {
 
 export type WorkAssignmentActionResult = { error?: string; success?: boolean };
 
+export type FinancialHistoryItem = {
+  id: string;
+  title: string;
+  amount: number;
+  currency: string;
+  assignmentStatus: WorkAssignmentStatus;
+  createdAt: string;
+  updatedAt: string;
+  deliverableSubmittedAt: string | null;
+  counterpartyName: string;
+  payment: PaymentVerification | null;
+};
+
+export type FinancialHistory = {
+  role: "freelancer" | "client";
+  summary: {
+    totalAssignments: number;
+    activeAssignments: number;
+    completedAssignments: number;
+    verifiedAmount: number;
+    pendingAmount: number;
+    activeWorkValue: number;
+    averageCompletedAssignmentValue: number;
+  };
+  history: FinancialHistoryItem[];
+};
+
 async function requireAccessToken() {
   const session = await auth();
   if (!session?.accessToken) {
@@ -107,6 +134,11 @@ export async function listWorkAssignmentsAction(conversationId: string): Promise
   return backendFetch<WorkAssignment[]>(`/conversations/${conversationId}/work-assignments`, {
     accessToken,
   });
+}
+
+export async function getFinancialHistoryAction(): Promise<FinancialHistory> {
+  const accessToken = await requireAccessToken();
+  return backendFetch<FinancialHistory>("/financial-history", { accessToken });
 }
 
 export type CreateWorkAssignmentInput = {

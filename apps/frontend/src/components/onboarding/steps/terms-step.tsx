@@ -54,23 +54,26 @@ export function TermsStep({
           { label: "Language", value: freelancerProfile.language },
           {
             label: "Professions",
-            value: freelancerProfile.professions.join(", "),
+            value: freelancerProfile.professions.map((item) => item.name).join(", "),
           },
           { label: "Experience", value: freelancerProfile.experience },
           {
-            label: "Portfolio samples",
-            value: portfolio.files.length
-              ? `${portfolio.files.length} uploaded`
+            label: "Portfolio links",
+            value: portfolio.links.filter(Boolean).length
+              ? `${portfolio.links.filter(Boolean).length} added`
               : "",
           },
-          { label: "Skills", value: portfolio.skills.join(", ") },
+          {
+            label: "Skills",
+            value: portfolio.skills.map((item) => item.name).join(", "),
+          },
         ]
       : [
           { label: "Company name", value: customerProfile.companyName },
           { label: "Location", value: customerProfile.state },
           {
             label: "Business category",
-            value: customerProfile.categories.join(", "),
+            value: customerProfile.categories.map((item) => item.name).join(", "),
           },
         ];
 
@@ -92,11 +95,11 @@ export function TermsStep({
           </Accordion>
         </div>
 
-        <label className="flex cursor-pointer items-start gap-3 rounded-2xl bg-accent p-4">
+        <label className="flex min-h-14 cursor-pointer items-start gap-3 rounded-2xl bg-accent p-4 outline-none focus-within:ring-3 focus-within:ring-ring/50">
           <Checkbox
             checked={accepted}
             onCheckedChange={(checked) => onAcceptedChange(checked === true)}
-            className="mt-0.5"
+            className="mt-0.5 size-5"
           />
           <span className="text-sm text-accent-foreground">
             Yes, I have read and accept the Terms &amp; Conditions and Privacy

@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useActionState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { ArrowRight, Eye, EyeOff } from "lucide-react";
+import { ArrowRight, BriefcaseBusiness, Check, Eye, EyeOff, UserRound } from "lucide-react";
 
 import { signupAction, type AuthActionState } from "@/app/auth/actions";
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,9 @@ export function SignupForm() {
   const [state, formAction, isPending] = useActionState(signupAction, initialState);
   const [showPassword, setShowPassword] = React.useState(false);
   const [acceptedTerms, setAcceptedTerms] = React.useState(false);
+  const [fieldErrors, setFieldErrors] = React.useState<
+    Partial<Record<"name" | "email" | "password" | "terms", string>>
+  >({});
   const { role, setRole } = useSignupRole();
   const emailRef = React.useRef<HTMLInputElement>(null);
   const prefersReducedMotion = useReducedMotion();
@@ -44,13 +48,60 @@ export function SignupForm() {
 
   React.useEffect(() => {
     if (state.error) {
-      emailRef.current?.focus();
+      const firstInvalidField = document.querySelector<HTMLElement>(
+        "#signup-form [aria-invalid='true']"
+      );
+      firstInvalidField?.focus();
     }
   }, [state]);
+
+  const validateField = React.useCallback((name: string, value: string) => {
+    if (name === "name") {
+      return value.trim().length >= 2 ? undefined : "Enter your full name.";
+    }
+    if (name === "email") {
+      if (!value.trim()) return "Enter your email address.";
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
+        ? undefined
+        : "Enter a valid email address.";
+    }
+    if (name === "password") {
+      if (!value) return "Enter a password.";
+      return value.length >= 8 ? undefined : "Password must be at least 8 characters.";
+    }
+    return undefined;
+  }, []);
+
+  function updateFieldError(name: "name" | "email" | "password", value: string) {
+    setFieldErrors((current) => ({ ...current, [name]: validateField(name, value) }));
+  }
+
+  function validateBeforeSubmit(event: React.FormEvent<HTMLFormElement>) {
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    const nextErrors = {
+      name: validateField("name", String(formData.get("name") ?? "")),
+      email: validateField("email", String(formData.get("email") ?? "")),
+      password: validateField("password", String(formData.get("password") ?? "")),
+      terms: acceptedTerms ? undefined : "Accept the Terms of Service and Privacy Policy to continue.",
+    };
+
+    setFieldErrors(nextErrors);
+    if (Object.values(nextErrors).some(Boolean)) {
+      event.preventDefault();
+      window.requestAnimationFrame(() => {
+        form.querySelector<HTMLElement>("[aria-invalid='true']")?.focus();
+      });
+    }
+  }
+
+  const visibleErrors = { ...fieldErrors, ...state.fieldErrors };
 
   return (
     <motion.form
       action={formAction}
+      id="signup-form"
+      onSubmit={validateBeforeSubmit}
       autoComplete="off"
       aria-busy={isPending}
       animate={
@@ -59,52 +110,67 @@ export function SignupForm() {
           : { x: 0 }
       }
       transition={{ duration: prefersReducedMotion ? 0 : 0.22, ease: "easeOut" }}
-      className={`flex flex-col gap-5 ${isPending ? "cursor-progress" : ""}`}
+      className={`flex min-w-0 flex-col gap-5 ${isPending ? "cursor-progress" : ""}`}
     >
-      <div className="flex flex-col gap-2">
-        <Label>I&apos;m signing up as</Label>
+      <fieldset className="min-w-0 space-y-2.5">
+        <legend className="text-sm font-medium text-foreground">I&apos;m signing up as</legend>
         <input type="hidden" name="role" value={role} />
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2 min-[375px]:gap-3">
           <button
             type="button"
             disabled={isPending}
             onClick={() => setRole("freelancer")}
             aria-pressed={role === "freelancer"}
-            className={`h-12 rounded-xl border text-sm font-medium transition-colors ${
+            className={`relative flex min-h-16 min-w-0 items-center gap-2 rounded-xl border px-2.5 text-left text-sm font-semibold outline-none transition-all focus-visible:ring-3 focus-visible:ring-ring/50 min-[375px]:px-3 ${
               role === "freelancer"
-                ? "border-primary bg-primary/10 text-primary"
+                ? "border-primary bg-primary/10 text-primary shadow-sm ring-1 ring-primary/20"
                 : "border-border bg-transparent text-muted-foreground hover:bg-accent"
             }`}
           >
-            Freelancer
+            <UserRound className="size-5 shrink-0" aria-hidden="true" />
+            <span className="min-w-0 break-words">Freelancer</span>
+            {role === "freelancer" && <Check className="absolute right-2 top-2 size-3.5" />}
           </button>
           <button
             type="button"
             disabled={isPending}
             onClick={() => setRole("client")}
             aria-pressed={role === "client"}
-            className={`h-12 rounded-xl border text-sm font-medium transition-colors ${
+            className={`relative flex min-h-16 min-w-0 items-center gap-2 rounded-xl border px-2.5 text-left text-sm font-semibold outline-none transition-all focus-visible:ring-3 focus-visible:ring-ring/50 min-[375px]:px-3 ${
               role === "client"
-                ? "border-primary bg-primary/10 text-primary"
+                ? "border-primary bg-primary/10 text-primary shadow-sm ring-1 ring-primary/20"
                 : "border-border bg-transparent text-muted-foreground hover:bg-accent"
             }`}
           >
-            Client
+            <BriefcaseBusiness className="size-5 shrink-0" aria-hidden="true" />
+            <span className="min-w-0 break-words">Client</span>
+            {role === "client" && <Check className="absolute right-2 top-2 size-3.5" />}
           </button>
         </div>
-      </div>
+      </fieldset>
 
-      <div className="flex flex-col gap-2">
+      <div className="flex min-w-0 flex-col gap-2">
         <Label htmlFor="name">Full name</Label>
         <Input
           id="name"
           name="name"
-          autoComplete="off"
-          placeholder="Enter your full name"
+          autoComplete="name"
+          placeholder={role === "client" ? "Your name or company contact" : "Enter your full name"}
           disabled={isPending}
           required
-          className="h-12 rounded-xl"
+          aria-invalid={Boolean(visibleErrors.name)}
+          aria-describedby={visibleErrors.name ? "name-error" : undefined}
+          onBlur={(event) => updateFieldError("name", event.currentTarget.value)}
+          onChange={(event) => {
+            if (fieldErrors.name) updateFieldError("name", event.currentTarget.value);
+          }}
+          className="h-12 rounded-xl px-3.5"
         />
+        {visibleErrors.name && (
+          <p id="name-error" className="text-xs font-medium text-destructive" role="alert">
+            {visibleErrors.name}
+          </p>
+        )}
       </div>
 
       <div className="flex flex-col gap-2">
@@ -115,12 +181,25 @@ export function SignupForm() {
             id="email"
             name="email"
             type="email"
-            autoComplete="off"
-            placeholder="balamia@gmail.com"
+            autoComplete="email"
+            inputMode="email"
+            placeholder="you@example.com"
             disabled={isPending}
             required
+            aria-invalid={Boolean(visibleErrors.email)}
+            aria-describedby={visibleErrors.email ? "email-error" : undefined}
+            onBlur={(event) => updateFieldError("email", event.currentTarget.value)}
+            onChange={(event) => {
+              if (fieldErrors.email) updateFieldError("email", event.currentTarget.value);
+            }}
+            className="px-3.5"
           />
         </InputGroup>
+        {visibleErrors.email && (
+          <p id="email-error" className="text-xs font-medium text-destructive" role="alert">
+            {visibleErrors.email}
+          </p>
+        )}
       </div>
 
       <div className="flex flex-col gap-2">
@@ -135,34 +214,80 @@ export function SignupForm() {
             disabled={isPending}
             minLength={8}
             required
+            aria-invalid={Boolean(visibleErrors.password)}
+            aria-describedby={
+              visibleErrors.password
+                ? "password-requirement password-error"
+                : "password-requirement"
+            }
+            onBlur={(event) => updateFieldError("password", event.currentTarget.value)}
+            onChange={(event) => {
+              if (fieldErrors.password) updateFieldError("password", event.currentTarget.value);
+            }}
+            className="pl-3.5"
           />
           <InputGroupAddon align="inline-end">
             <InputGroupButton
               type="button"
               size="icon-sm"
               aria-label={showPassword ? "Hide password" : "Show password"}
+              aria-pressed={showPassword}
               disabled={isPending}
               onClick={() => setShowPassword((value) => !value)}
+              className="size-11 rounded-lg"
             >
               {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
             </InputGroupButton>
           </InputGroupAddon>
         </InputGroup>
+        <p id="password-requirement" className="text-xs text-muted-foreground">
+          Use at least 8 characters.
+        </p>
+        {visibleErrors.password && (
+          <p id="password-error" className="text-xs font-medium text-destructive" role="alert">
+            {visibleErrors.password}
+          </p>
+        )}
       </div>
 
       <label
-        className={`flex items-start gap-3 rounded-xl bg-accent p-3.5 ${isPending ? "cursor-progress opacity-75" : "cursor-pointer"}`}
+        className={`flex min-h-14 items-start gap-3 rounded-xl border p-3.5 outline-none transition-colors focus-within:ring-3 focus-within:ring-ring/50 ${visibleErrors.terms ? "border-destructive bg-destructive/5" : "border-transparent bg-accent"} ${isPending ? "cursor-progress opacity-75" : "cursor-pointer"}`}
       >
         <Checkbox
           checked={acceptedTerms}
-          onCheckedChange={(checked) => setAcceptedTerms(checked === true)}
+          onCheckedChange={(checked) => {
+            const isChecked = checked === true;
+            setAcceptedTerms(isChecked);
+            setFieldErrors((current) => ({
+              ...current,
+              terms: isChecked ? undefined : current.terms,
+            }));
+          }}
           disabled={isPending}
+          aria-invalid={Boolean(visibleErrors.terms)}
+          aria-describedby={visibleErrors.terms ? "terms-error" : undefined}
           className="mt-0.5 size-5 rounded-md border-primary/35 bg-white text-white shadow-sm data-checked:border-primary data-checked:bg-primary"
         />
-        <span className="text-sm text-accent-foreground">
-          I agree to Porishrom&apos;s Terms of Service and Privacy Policy.
+        <span className="text-sm leading-5 text-accent-foreground">
+          I agree to Porishrom&apos;s{" "}
+          <Link href="/terms" className="font-semibold text-primary underline-offset-2 hover:underline">
+            Terms of Service
+          </Link>{" "}
+          and{" "}
+          <Link
+            href="/terms#privacy-data-protection"
+            className="font-semibold text-primary underline-offset-2 hover:underline"
+          >
+            Privacy Policy
+          </Link>
+          .
         </span>
       </label>
+      {visibleErrors.terms && (
+        <p id="terms-error" className="-mt-3 text-xs font-medium text-destructive" role="alert">
+          {visibleErrors.terms}
+        </p>
+      )}
 
       {state.error && (
         <Alert variant="destructive">

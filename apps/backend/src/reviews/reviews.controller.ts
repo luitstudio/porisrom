@@ -1,7 +1,9 @@
 import { Body, Controller, Get, Param, Post, UseGuards } from "@nestjs/common";
 
 import { CurrentUser, type CurrentUserPayload } from "../auth/decorators/current-user.decorator";
+import { Roles } from "../auth/decorators/roles.decorator";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../auth/guards/roles.guard";
 import { CreateReviewDto } from "./dto/create-review.dto";
 import { ReviewsService } from "./reviews.service";
 
@@ -17,6 +19,13 @@ export class ReviewsController {
     @Body() dto: CreateReviewDto,
   ) {
     return this.reviewsService.create(user.userId, id, dto);
+  }
+
+  @Get("freelancers/me/reviews")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("freelancer")
+  listOwnForFreelancer(@CurrentUser() user: CurrentUserPayload) {
+    return this.reviewsService.listOwnForFreelancer(user.userId);
   }
 
   @Get("freelancers/:id/reviews")

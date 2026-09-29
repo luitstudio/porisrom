@@ -85,7 +85,7 @@ export function MobileStepHeader({ roleLabel, steps, currentStep }: SidebarNavPr
   const percent = Math.round(((currentStep + 1) / steps.length) * 100);
 
   return (
-    <div className="flex flex-col gap-3 lg:hidden">
+    <div className="flex min-w-0 max-w-full flex-col gap-3 lg:hidden">
       <div className="flex items-center justify-between text-xs text-muted-foreground">
         <span className="font-medium uppercase tracking-wide text-primary">
           {roleLabel} setup
@@ -95,7 +95,7 @@ export function MobileStepHeader({ roleLabel, steps, currentStep }: SidebarNavPr
         </span>
       </div>
       <Progress value={percent} />
-      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+      <div className="flex max-w-full items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {steps.map((step, index) => {
           const isComplete = index < currentStep;
           const isActive = index === currentStep;
@@ -103,7 +103,7 @@ export function MobileStepHeader({ roleLabel, steps, currentStep }: SidebarNavPr
             <span
               key={step.id}
               className={cn(
-                "flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium whitespace-nowrap",
+                "flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium whitespace-nowrap",
                 isActive && "border-primary bg-accent text-foreground",
                 isComplete && !isActive && "border-primary/40 text-foreground",
                 !isActive && !isComplete && "border-border text-muted-foreground"

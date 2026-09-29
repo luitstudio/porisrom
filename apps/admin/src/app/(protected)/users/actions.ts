@@ -12,11 +12,33 @@ async function callAdmin(path: string, method: "PATCH" | "DELETE", body?: unknow
 }
 
 export async function approveUser(userId: string) {
-  await callAdmin(`/admin/users/${userId}/approve`, "PATCH");
+  try {
+    await callAdmin(`/admin/users/${userId}/approve`, "PATCH");
+    revalidatePath(`/users/${userId}`);
+    return { ok: true as const };
+  } catch {
+    return { ok: false as const, error: "Could not approve this profile. Please try again." };
+  }
 }
 
 export async function rejectUser(userId: string) {
-  await callAdmin(`/admin/users/${userId}/reject`, "PATCH");
+  try {
+    await callAdmin(`/admin/users/${userId}/reject`, "PATCH");
+    revalidatePath(`/users/${userId}`);
+    return { ok: true as const };
+  } catch {
+    return { ok: false as const, error: "Could not reject this profile. Please try again." };
+  }
+}
+
+export async function reviewIdentityDocument(userId: string, status: "approved" | "rejected") {
+  try {
+    await callAdmin(`/admin/users/${userId}/identity-document/review`, "PATCH", { status });
+    revalidatePath(`/users/${userId}`);
+    return { ok: true as const };
+  } catch {
+    return { ok: false as const, error: "Could not update the identity document review. Please try again." };
+  }
 }
 
 export async function setBadge(userId: string, isBadgeVerified: boolean) {

@@ -9,7 +9,9 @@ function dashboardPathFor(role: "freelancer" | "client" | "admin" | null) {
   // Admins have no workflow inside apps/frontend — the real admin console is
   // the separate apps/admin app (Phase 9), so just send them to the homepage.
   if (role === "admin") return "/";
-  return role === "freelancer" ? "/dashboard/freelancer" : "/dashboard/client";
+  if (role === "freelancer") return "/dashboard/freelancer";
+  if (role === "client") return "/dashboard/client";
+  return "/onboarding";
 }
 
 export default auth((req) => {
@@ -37,8 +39,25 @@ export default auth((req) => {
     return NextResponse.redirect(new URL(target, nextUrl));
   }
 
+  if (isDashboardPage && role === "admin") {
+    return NextResponse.redirect(new URL("/", nextUrl));
+  }
+
   if (isDashboardPage && !isOnboarded) {
     return NextResponse.redirect(new URL("/onboarding", nextUrl));
+  }
+
+  if (isDashboardPage) {
+    const expectedDashboard = dashboardPathFor(role);
+    if (role === null) {
+      return NextResponse.redirect(new URL(expectedDashboard, nextUrl));
+    }
+    if (role === "client" && pathname.startsWith("/dashboard/freelancer")) {
+      return NextResponse.redirect(new URL(expectedDashboard, nextUrl));
+    }
+    if (role === "freelancer" && pathname.startsWith("/dashboard/client")) {
+      return NextResponse.redirect(new URL(expectedDashboard, nextUrl));
+    }
   }
 
   return NextResponse.next();

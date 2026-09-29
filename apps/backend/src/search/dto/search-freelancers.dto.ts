@@ -4,6 +4,10 @@ import { IsBoolean, IsInt, IsOptional, IsString, Max, Min } from "class-validato
 export class SearchFreelancersDto {
   @IsOptional()
   @IsString()
+  keyword?: string;
+
+  @IsOptional()
+  @IsString()
   categoryId?: string;
 
   @IsOptional()
@@ -13,6 +17,10 @@ export class SearchFreelancersDto {
   @IsOptional()
   @IsString()
   state?: string;
+
+  @IsOptional()
+  @IsString()
+  district?: string;
 
   @IsOptional()
   @IsString()
