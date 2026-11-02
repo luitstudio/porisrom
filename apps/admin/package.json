@@ -1,15 +1,15 @@
 {
-  "name": "@porishrom/admin",
+  "name": "@porisrom/admin",
   "version": "0.1.0",
   "private": true,
-  "description": "Admin panel for Porishrom — consumes the backend API only.",
+  "description": "Admin panel for Porisrom — consumes the backend API only.",
   "scripts": {
     "dev": "next dev -p 3001",
     "build": "next build",
     "start": "next start -p 3001",
     "lint": "eslint",
     "type-check": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run --configLoader runner"
   },
   "dependencies": {
     "lucide-react": "^1.21.0",

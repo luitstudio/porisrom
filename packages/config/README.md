@@ -1,4 +1,4 @@
-# @porishrom/config
+# @porisrom/config
 
 Shared base configuration (tsconfig, eslint) for the other apps/packages to extend, so conventions stay consistent instead of duplicated per project.
 

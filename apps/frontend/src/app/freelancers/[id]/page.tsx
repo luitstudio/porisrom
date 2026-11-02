@@ -1,3 +1,4 @@
+import { CounterpartSafety } from "@/components/safety/safety-controls";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
@@ -10,11 +11,13 @@ import {
 } from "@/components/connections/connection-action-panel";
 import { Footer } from "@/components/layout/footer";
 import { Navbar } from "@/components/layout/navbar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 type FreelancerProfile = {
   id: string;
   userId: string;
   bio: string | null;
+  profilePhotoUrl: string | null;
   address: string | null;
   state: string | null;
   district: string | null;
@@ -59,6 +62,16 @@ async function getReviews(id: string): Promise<ProfileReview[]> {
 // toLocaleDateString()'s runtime-dependent locale/timeZone (see work-assignment-panel.tsx).
 function formatDate(iso: string) {
   return iso.slice(0, 10);
+}
+
+function initialsFor(name: string) {
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase() || "P";
 }
 
 export async function generateMetadata({
@@ -113,17 +126,27 @@ export default async function FreelancerProfilePage({
           &larr; Back to Find Freelancers
         </Link>
 
-        <div className="mt-4 flex items-center gap-3">
-          <h1 className="font-display text-3xl font-semibold text-foreground">
-            {profile.user.name}
-          </h1>
-          {profile.isBadgeVerified && (
-            <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-              Verified
-            </span>
-          )}
+        <div className="mt-4 flex items-start gap-4">
+          <Avatar className="size-20">
+            {profile.profilePhotoUrl && <AvatarImage src={profile.profilePhotoUrl} alt="" />}
+            <AvatarFallback className="bg-accent text-xl font-semibold text-accent-foreground">
+              {initialsFor(profile.user.name)}
+            </AvatarFallback>
+          </Avatar>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="break-words font-display text-3xl font-semibold text-foreground">
+                {profile.user.name}
+              </h1>
+              {profile.isBadgeVerified && (
+                <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+                  Verified
+                </span>
+              )}
+            </div>
+            {location && <p className="mt-1 text-sm text-muted-foreground">{location}</p>}
+          </div>
         </div>
-        {location && <p className="mt-1 text-sm text-muted-foreground">{location}</p>}
 
         {session?.user.role === "client" && (
           <ConnectionActionPanel
@@ -220,6 +243,7 @@ export default async function FreelancerProfilePage({
         )}
       </main>
 
+      {isAuthenticated && session?.user.id !== profile.userId && <CounterpartSafety targetUserId={profile.userId} />}
       <Footer />
     </div>
   );

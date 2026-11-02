@@ -1,8 +1,10 @@
+import { backendOrigin } from "./deployment-origin";
+
 const LOCAL_BACKEND_URL = "http://localhost:4000";
 
-function getBackendUrl() {
+export function getBackendUrl() {
   const configuredUrl = process.env.BACKEND_URL?.trim();
-  if (configuredUrl) return configuredUrl;
+  if (configuredUrl) return backendOrigin(configuredUrl, "BACKEND_URL");
   if (process.env.NODE_ENV === "production") {
     throw new Error("BACKEND_URL must be configured in production");
   }

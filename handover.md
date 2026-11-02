@@ -1,4 +1,4 @@
-# Porishrom developer handover
+# Porisrom developer handover
 
 ## Purpose
 
@@ -22,10 +22,10 @@ Useful commands:
 
 ```powershell
 pnpm.cmd install --frozen-lockfile
-pnpm.cmd --filter @porishrom/database generate
-pnpm.cmd --filter @porishrom/database migrate:dev       # local only
-pnpm.cmd --filter @porishrom/database migrate:deploy    # staging/production only
-pnpm.cmd --filter @porishrom/backend test
+pnpm.cmd --filter @porisrom/database generate
+pnpm.cmd --filter @porisrom/database migrate:dev       # local only
+pnpm.cmd --filter @porisrom/database migrate:deploy    # staging/production only
+pnpm.cmd --filter @porisrom/backend test
 pnpm.cmd lint
 pnpm.cmd type-check
 pnpm.cmd build
@@ -113,7 +113,7 @@ Current keyword fields:
 ## Non-negotiable checks before handoff completion
 
 ```powershell
-pnpm.cmd --filter @porishrom/backend test
+pnpm.cmd --filter @porisrom/backend test
 pnpm.cmd lint
 pnpm.cmd type-check
 pnpm.cmd build

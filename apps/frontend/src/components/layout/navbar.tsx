@@ -222,6 +222,7 @@ export function Navbar({ isAuthenticated = false }: NavbarProps) {
               >
                 Dashboard
               </Button>
+              <Link href="/safety" className="text-sm">Safety &amp; support</Link>
               {role === "freelancer" ? (
                 <FreelancerAccountMenu name={session?.user?.name ?? "Freelancer"} />
               ) : (
@@ -301,6 +302,7 @@ function FreelancerAccountMenu({ name }: { name: string }) {
             <span className="mt-0.5 block text-xs font-normal text-muted-foreground">Freelancer account</span>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
+          <DropdownMenuItem render={<Link href="/safety" />} className="min-h-11 px-2.5">Safety &amp; support</DropdownMenuItem>
           <DropdownMenuItem render={<Link href="/dashboard/freelancer/settings" />} className="min-h-11 px-2.5">
             <User /> Profile
           </DropdownMenuItem>

@@ -16,6 +16,13 @@ export type CompanyOwnerProfile = {
   address: string | null;
   state: string | null;
   verificationStatus: string;
+  documents: {
+    id: string;
+    type: "company_certificate" | "aadhaar";
+    uploadStatus: string;
+    createdAt: string;
+    updatedAt: string;
+  }[];
   categories: { category: TaxonomyItem }[];
 };
 

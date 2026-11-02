@@ -6,7 +6,13 @@ import { useSession } from "next-auth/react";
 import { ArrowLeft, ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { completeOnboardingAction, uploadIdentityDocumentAction } from "@/app/onboarding/actions";
+import {
+  completeOnboardingAction,
+  uploadCompanyDocumentsAction,
+  uploadCompanyLogoAction,
+  uploadFreelancerProfilePhotoAction,
+  uploadIdentityDocumentAction,
+} from "@/app/onboarding/actions";
 import { OnboardingDashboardShell } from "@/components/onboarding/onboarding-dashboard-shell";
 import { CustomerProfileStep } from "@/components/onboarding/steps/customer-profile-step";
 import { FreelancerProfileStep } from "@/components/onboarding/steps/freelancer-profile-step";
@@ -20,6 +26,8 @@ import {
   EMPTY_FREELANCER_PROFILE,
   EMPTY_PORTFOLIO,
   type OnboardingRole,
+  type OnboardingDraft,
+  type IdentityReviewStatus,
   type Step,
   type TaxonomyItem,
 } from "@/lib/onboarding-types";
@@ -52,12 +60,14 @@ const STEP_TITLES: Record<string, { title: string; description: string }> = {
 };
 
 type OnboardingWizardProps = {
+  draft?: OnboardingDraft;
   freelancerCategories: TaxonomyItem[];
   freelancerSkills: TaxonomyItem[];
   companyCategories: TaxonomyItem[];
 };
 
 export function OnboardingWizard({
+  draft,
   freelancerCategories,
   freelancerSkills,
   companyCategories,
@@ -85,11 +95,15 @@ export function OnboardingWizard({
   const [pending, setPending] = React.useState(false);
   const [completed, setCompleted] = React.useState(false);
   const [actionError, setActionError] = React.useState<string | null>(null);
-  const [identityDocumentStatus, setIdentityDocumentStatus] = React.useState<"not_submitted" | "pending">("not_submitted");
+  const [identityDocumentStatus, setIdentityDocumentStatus] = React.useState<IdentityReviewStatus>(draft?.identityDocumentReview?.status ?? "not_submitted");
 
-  const [freelancerProfile, setFreelancerProfile] = React.useState(EMPTY_FREELANCER_PROFILE);
-  const [customerProfile, setCustomerProfile] = React.useState(EMPTY_CUSTOMER_PROFILE);
-  const [portfolio, setPortfolio] = React.useState(EMPTY_PORTFOLIO);
+  const [freelancerProfile, setFreelancerProfile] = React.useState({ ...EMPTY_FREELANCER_PROFILE, name: session?.user.name ?? "", about: draft?.bio ?? "",
+    address: draft?.address ?? "", state: draft?.state ?? "Assam", district: draft?.district ?? "",
+    language: draft?.languages?.[0] ?? "", experience: draft?.experienceLevel ?? "",
+    professions: draft?.categories?.map((r) => r.category) ?? [] });
+  const [customerProfile, setCustomerProfile] = React.useState({ ...EMPTY_CUSTOMER_PROFILE, companyName: draft?.companyName ?? "", about: draft?.about ?? "",
+    address: draft?.address ?? "", state: draft?.state ?? "Assam", categories: draft?.categories?.map((r) => r.category) ?? [] });
+  const [portfolio, setPortfolio] = React.useState({ ...EMPTY_PORTFOLIO, links: draft?.portfolioItems?.length ? draft.portfolioItems.map((r) => r.url) : [""], skills: draft?.skills?.map((r) => r.skill) ?? [] });
   const [accepted, setAccepted] = React.useState(false);
 
   const steps = role ? STEPS[role] : [];
@@ -135,6 +149,24 @@ export function OnboardingWizard({
         return;
       }
 
+      const profilePhoto =
+        role === "freelancer" ? freelancerProfile.profilePhotoFile : customerProfile.logoFile;
+      if (profilePhoto) {
+        const photoForm = new FormData();
+        photoForm.set("photo", profilePhoto);
+        const photoResult =
+          role === "freelancer"
+            ? await uploadFreelancerProfilePhotoAction(photoForm)
+            : await uploadCompanyLogoAction(photoForm);
+        if ("error" in photoResult) {
+          setPending(false);
+          setActionError(photoResult.error);
+          return;
+        }
+        if (role === "freelancer") setFreelancerProfile((prev) => ({ ...prev, profilePhotoFile: null }));
+        else setCustomerProfile((prev) => ({ ...prev, logoFile: null }));
+      }
+
       if (role === "freelancer" && freelancerProfile.aadhaarFiles[0]) {
         const documentForm = new FormData();
         documentForm.set("document", freelancerProfile.aadhaarFiles[0]);
@@ -145,8 +177,26 @@ export function OnboardingWizard({
           return;
         }
         setIdentityDocumentStatus(documentResult.status);
+        setFreelancerProfile((prev) => ({ ...prev, aadhaarFiles: [] }));
       }
 
+      if (role === "client" && (customerProfile.certificateFiles.length > 0 || customerProfile.aadhaarFiles.length > 0)) {
+        const documentForm = new FormData();
+        if (customerProfile.certificateFiles[0]) {
+          documentForm.set("certificate", customerProfile.certificateFiles[0]);
+        }
+        for (const aadhaarFile of customerProfile.aadhaarFiles) {
+          documentForm.append("aadhaar", aadhaarFile);
+        }
+        const documentResult = await uploadCompanyDocumentsAction(documentForm);
+        if ("error" in documentResult) {
+          setPending(false);
+          setActionError(documentResult.error);
+          return;
+        }
+      }
+
+      if (role === "client") setCustomerProfile((prev) => ({ ...prev, certificateFiles: [], aadhaarFiles: [] }));
       await update({ isOnboarded: true });
       setCompleted(true);
       router.push(result.redirectTo);

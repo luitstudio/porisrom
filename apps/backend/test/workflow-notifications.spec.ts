@@ -1,3 +1,4 @@
+import { activeMarketplaceFixture } from "./active-marketplace-fixture";
 import { ConflictException } from "@nestjs/common";
 import { describe, expect, it, vi } from "vitest";
 
@@ -24,6 +25,7 @@ const activeConnection = {
 describe("core workflow notification persistence", () => {
   it("creates connection_requested for the receiver on the connection transaction client", async () => {
     const tx = {
+      ...activeMarketplaceFixture(),
       $queryRaw: vi.fn(),
       user: {
         findUnique: vi.fn()
@@ -51,6 +53,7 @@ describe("core workflow notification persistence", () => {
     ["decline", "connection_declined"],
   ] as const)("creates %s notification for the requester in the response transaction", async (action, type) => {
     const tx = {
+      ...activeMarketplaceFixture(),
       $queryRaw: vi.fn(),
       connection: {
         findUnique: vi.fn().mockResolvedValue(activeConnection),
@@ -80,7 +83,8 @@ describe("core workflow notification persistence", () => {
       createdAt: new Date(),
       readAt: null,
     };
-    const tx = { message: { create: vi.fn().mockResolvedValue(message) }, notification: { create: notification } };
+    const tx = {
+      ...activeMarketplaceFixture(), message: { create: vi.fn().mockResolvedValue(message) }, notification: { create: notification } };
     const service = new ConversationsService(
       prismaService({
         $transaction: vi.fn((callback) => callback(tx)),
@@ -103,6 +107,7 @@ describe("core workflow notification persistence", () => {
 
   it("creates work_assignment_proposed for the other conversation participant on the transaction client", async () => {
     const tx = {
+      ...activeMarketplaceFixture(),
       workAssignment: { create: vi.fn().mockResolvedValue({ id: "assignment-1" }) },
       workAssignmentEvent: { create: vi.fn() },
       notification: { create: vi.fn() },
@@ -115,7 +120,7 @@ describe("core workflow notification persistence", () => {
             connection: { requesterId: "client-1", receiverId: "freelancer-1" },
           }),
         },
-        user: { findUnique: vi.fn().mockResolvedValue({ role: "client" }) },
+        user: { ...activeMarketplaceFixture().user, findUnique: vi.fn().mockResolvedValue({ role: "client" }) },
         workAssignment: { findUnique: vi.fn().mockResolvedValue(null) },
       }),
     );
@@ -138,10 +143,12 @@ describe("core workflow notification persistence", () => {
       id: "assignment-1",
       createdById: "client-1",
       status: "proposed",
+      updatedAt: new Date("2026-10-22T00:00:00Z"), cancelRequestedById: null,
       conversation: { connection: { requesterId: "client-1", receiverId: "freelancer-1" } },
     };
     const tx = {
-      workAssignment: { update: vi.fn() },
+      ...activeMarketplaceFixture(),
+      workAssignment: { update: vi.fn(), findUnique: vi.fn().mockResolvedValue(assignment) },
       workAssignmentEvent: { create: vi.fn() },
       notification: { create: vi.fn() },
     };

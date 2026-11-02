@@ -16,10 +16,12 @@ import { RealtimeModule } from "./realtime/realtime.module";
 import { SearchModule } from "./search/search.module";
 import { WorkAssignmentsModule } from "./work-assignments/work-assignments.module";
 import { validateProductionAuthSecrets } from "./auth/production-auth-config";
+import { validateDocumentStorageConfig } from "./document-storage";
+import { SafetyModule } from "./safety/safety.module";
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true, validate: validateProductionAuthSecrets }),
+    ConfigModule.forRoot({ isGlobal: true, validate: config => validateDocumentStorageConfig(validateProductionAuthSecrets(config)) }),
     PrismaModule,
     AuthModule,
     CatalogModule,
@@ -29,6 +31,7 @@ import { validateProductionAuthSecrets } from "./auth/production-auth-config";
     ConnectionsModule,
     ConversationsModule,
     WorkAssignmentsModule,
+    SafetyModule,
     ReviewsModule,
     RealtimeModule,
     LeaderboardModule,

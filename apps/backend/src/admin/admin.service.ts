@@ -1,6 +1,7 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException, Optional } from "@nestjs/common";
-import type { Role } from "@porishrom/database";
+import type { Role } from "@porisrom/database";
 
+import { auditedAdminMutation } from "./audited-mutation";
 import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 
@@ -57,6 +58,7 @@ export class AdminService {
           select: {
             id: true,
             bio: true,
+            profilePhotoUrl: true,
             address: true,
             state: true,
             district: true,
@@ -79,6 +81,7 @@ export class AdminService {
             logoUrl: true,
             verificationStatus: true,
             isBadgeVerified: true,
+            documents: { select: { id: true, type: true, uploadStatus: true, createdAt: true, updatedAt: true } },
             categories: { select: { category: { select: { id: true, name: true, slug: true } } } },
           },
         },
@@ -100,30 +103,32 @@ export class AdminService {
     return { id: user.id, name: user.name, role: user.role, status: user.status, isOnboarded: user.isOnboarded, profile };
   }
 
-  approveProfile(userId: string) {
-    return this.setVerificationStatus(userId, "approved");
+  approveProfile(userId: string, adminId: string) {
+    return this.setVerificationStatus(userId, "approved", adminId);
   }
 
-  rejectProfile(userId: string) {
-    return this.setVerificationStatus(userId, "rejected");
+  rejectProfile(userId: string, adminId: string) {
+    return this.setVerificationStatus(userId, "rejected", adminId);
   }
 
-  async setBadge(userId: string, isBadgeVerified: boolean) {
-    const user = await this.prisma.db.user.findUnique({ where: { id: userId } });
-    if (!user) {
-      throw new NotFoundException("User not found");
-    }
+  async setBadge(userId: string, isBadgeVerified: boolean, adminId: string) {
+    return auditedAdminMutation(this.prisma.db, adminId, "set_badge", userId, { isBadgeVerified }, async (tx) => {
+      const user = await tx.user.findUnique({ where: { id: userId } });
+      if (!user) {
+        throw new NotFoundException("User not found");
+      }
 
-    if (user.role === "freelancer") {
-      return this.prisma.db.freelancerProfile.update({ where: { userId }, data: { isBadgeVerified } });
-    }
-    if (user.role === "client") {
-      return this.prisma.db.companyProfile.update({ where: { userId }, data: { isBadgeVerified } });
-    }
-    throw new NotFoundException("User has no profile to badge");
+      if (user.role === "freelancer") {
+        return tx.freelancerProfile.update({ where: { userId }, data: { isBadgeVerified } });
+      }
+      if (user.role === "client") {
+        return tx.companyProfile.update({ where: { userId }, data: { isBadgeVerified } });
+      }
+      throw new NotFoundException("User has no profile to badge");
+    });
   }
 
-  async setBlocked(userId: string, blocked: boolean) {
+  async setBlocked(userId: string, blocked: boolean, adminId: string) {
     const user = await this.prisma.db.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw new NotFoundException("User not found");
@@ -134,30 +139,59 @@ export class AdminService {
     if (user.status === "deleted") {
       throw new ConflictException("Cannot change block state of a deleted user");
     }
-    return this.prisma.db.user.update({
-      where: { id: userId },
-      data: { status: blocked ? "blocked" : "active" },
-      select: ADMIN_USER_LIST_SELECT,
-    });
+    return this.moderateUser(userId, blocked ? "blocked" : "active", adminId);
   }
 
-  async softDeleteUser(userId: string) {
+  async softDeleteUser(userId: string, adminId: string) {
     const user = await this.prisma.db.user.findUnique({ where: { id: userId } });
-    if (!user) {
-      throw new NotFoundException("User not found");
-    }
-    if (user.role === "admin") {
-      throw new ForbiddenException("Admin accounts cannot be deleted");
-    }
-    return this.prisma.db.user.update({
-      where: { id: userId },
-      data: {
-        status: "deleted",
-        name: "Deleted User",
-        email: `deleted-${userId}@porishrom.invalid`,
-      },
-      select: ADMIN_USER_LIST_SELECT,
+    if (!user) throw new NotFoundException("User not found");
+    if (user.role === "admin") throw new ForbiddenException("Admin accounts cannot be deleted");
+    return this.moderateUser(userId, "deleted", adminId);
+  }
+
+  private async moderateUser(userId: string, status: "active" | "blocked" | "deleted", adminId: string) {
+    const result = await this.prisma.db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${userId} FOR UPDATE`;
+      const actor = await tx.user.findUnique({ where: { id: adminId }, select: { role: true, status: true } });
+      if (actor?.role !== "admin" || actor.status !== "active") throw new ForbiddenException("Active administrator required");
+      const current = await tx.user.findUnique({ where: { id: userId } });
+      if (!current) throw new NotFoundException("User not found");
+      if (current.role === "admin") throw new ForbiddenException("Admin accounts cannot be moderated");
+      if (current.status === "deleted" && status !== "deleted") throw new ConflictException("Cannot change block state of a deleted user");
+      const user = await tx.user.update({
+        where: { id: userId },
+        data: status === "deleted"
+          ? { status, name: "Deleted User", email: `deleted-${userId}@porisrom.invalid` }
+          : { status },
+        select: ADMIN_USER_LIST_SELECT,
+      });
+      const notifications = [];
+      if (status !== "active") {
+        await tx.authSession.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
+        if (current.status !== status) {
+          const connections = await tx.connection.findMany({
+            where: { status: "accepted", OR: [{ requesterId: userId }, { receiverId: userId }] },
+            select: { requester: { select: { id: true, status: true } }, receiver: { select: { id: true, status: true } } },
+          });
+          const recipients = new Set(connections.map((connection) => connection.requester.id === userId ? connection.receiver : connection.requester)
+            .filter((user) => user.status === "active").map((user) => user.id));
+          for (const recipientId of recipients) {
+            notifications.push(await tx.notification.create({ data: {
+              userId: recipientId, type: "account_moderated",
+              message: "A counterpart account is unavailable. Your shared conversations and assignments are read-only. Contact support for assistance.",
+            } }));
+          }
+        }
+      }
+      await tx.adminActionLog.create({ data: { adminId, targetUserId: userId,
+        action: status === "deleted" ? "soft_delete_user" : "set_blocked",
+        metadata: { before: { status: current.status }, after: { status } },
+      } });
+      return { user, notifications };
     });
+    if (status !== "active") this.realtimeGateway?.disconnectUser(userId);
+    for (const notification of result.notifications) void this.realtimeGateway?.emitNotificationCreated(notification);
+    return result.user;
   }
 
   async listReviews() {
@@ -193,8 +227,8 @@ export class AdminService {
     }));
   }
 
-  async removeReview(reviewId: string) {
-    return this.prisma.db.$transaction(async (tx) => {
+  async removeReview(reviewId: string, adminId: string) {
+    return auditedAdminMutation(this.prisma.db, adminId, "remove_review", undefined, { reviewId }, async (tx) => {
       const review = await tx.review.findUnique({
         where: { id: reviewId },
         select: { id: true, targetId: true, direction: true },
@@ -258,20 +292,20 @@ export class AdminService {
   }
 
   async broadcastNotification(adminId: string, type: string, message: string) {
-    return this.prisma.db.notification.create({
-      data: { userId: null, type, message, createdBy: adminId },
+    return auditedAdminMutation(this.prisma.db, adminId, "broadcast_notification", undefined, { type }, async (tx) => {
+      return tx.notification.create({
+        data: { userId: null, type, message, createdBy: adminId },
+      });
     });
   }
 
   async sendDirectMessage(adminId: string, targetUserId: string, message: string) {
-    const user = await this.prisma.db.user.findUnique({ where: { id: targetUserId } });
-    if (!user) {
-      throw new NotFoundException("User not found");
-    }
-    const notification = await this.prisma.db.notification.create({
-      data: { userId: targetUserId, type: "admin_direct_message", message, createdBy: adminId },
+    const notification = await auditedAdminMutation(this.prisma.db, adminId, "send_direct_message", targetUserId, undefined, async (tx) => {
+      const user = await tx.user.findUnique({ where: { id: targetUserId } });
+      if (!user) throw new NotFoundException("User not found");
+      return tx.notification.create({ data: { userId: targetUserId, type: "admin_direct_message", message, createdBy: adminId } });
     });
-    this.realtimeGateway?.emitNotificationCreated(notification);
+    void this.realtimeGateway?.emitNotificationCreated(notification);
     return notification;
   }
 
@@ -351,28 +385,30 @@ export class AdminService {
     });
   }
 
-  private async setVerificationStatus(userId: string, status: "approved" | "rejected") {
-    const user = await this.prisma.db.user.findUnique({ where: { id: userId } });
-    if (!user) {
-      throw new NotFoundException("User not found");
-    }
-
-    if (user.role === "freelancer") {
-      const profile = await this.prisma.db.freelancerProfile.findUnique({ where: { userId } });
-      if (!profile) {
-        throw new NotFoundException("Freelancer profile not found");
+  private async setVerificationStatus(userId: string, status: "approved" | "rejected", adminId: string) {
+    return auditedAdminMutation(this.prisma.db, adminId, status === "approved" ? "approve_profile" : "reject_profile", userId, { status }, async (tx) => {
+      const user = await tx.user.findUnique({ where: { id: userId } });
+      if (!user) {
+        throw new NotFoundException("User not found");
       }
-      return this.prisma.db.freelancerProfile.update({ where: { userId }, data: { verificationStatus: status } });
-    }
 
-    if (user.role === "client") {
-      const profile = await this.prisma.db.companyProfile.findUnique({ where: { userId } });
-      if (!profile) {
-        throw new NotFoundException("Company profile not found");
+      if (user.role === "freelancer") {
+        const profile = await tx.freelancerProfile.findUnique({ where: { userId } });
+        if (!profile) {
+          throw new NotFoundException("Freelancer profile not found");
+        }
+        return tx.freelancerProfile.update({ where: { userId }, data: { verificationStatus: status } });
       }
-      return this.prisma.db.companyProfile.update({ where: { userId }, data: { verificationStatus: status } });
-    }
 
-    throw new NotFoundException("User has no profile to moderate");
+      if (user.role === "client") {
+        const profile = await tx.companyProfile.findUnique({ where: { userId } });
+        if (!profile) {
+          throw new NotFoundException("Company profile not found");
+        }
+        return tx.companyProfile.update({ where: { userId }, data: { verificationStatus: status } });
+      }
+
+      throw new NotFoundException("User has no profile to moderate");
+    });
   }
 }

@@ -6,6 +6,13 @@ import { requireSession } from "@/lib/session";
 import { ModerationActions } from "./moderation-actions";
 
 type CategoryRelation = { category: { id: string; name: string; slug: string } };
+type CompanyDocument = {
+  id: string;
+  type: "company_certificate" | "aadhaar";
+  uploadStatus: string;
+  createdAt: string;
+  updatedAt: string;
+};
 type ModerationProfile = {
   id: string;
   bio?: string | null;
@@ -19,6 +26,7 @@ type ModerationProfile = {
   verificationStatus: string;
   isBadgeVerified: boolean;
   identityDocument?: { status: string; reviewedAt: string | null } | null;
+  documents?: CompanyDocument[];
   categories: CategoryRelation[];
   skills?: { skill: { id: string; name: string } }[];
   portfolioItems?: { id: string; title: string; type: string; url: string }[];
@@ -27,6 +35,10 @@ type ModerationDetail = { id: string; name: string; role: "freelancer" | "client
 
 function Field({ label, value }: { label: string; value?: string | null }) {
   return <div><dt className="text-sm font-medium" style={{ color: "var(--muted)" }}>{label}</dt><dd className="mt-1 break-words">{value || "Not provided"}</dd></div>;
+}
+
+function companyDocumentLabel(type: CompanyDocument["type"]) {
+  return type === "company_certificate" ? "Company certificate" : "Aadhaar";
 }
 
 export default async function ProfileReviewPage({ params }: { params: Promise<{ id: string }> }) {
@@ -57,7 +69,8 @@ export default async function ProfileReviewPage({ params }: { params: Promise<{ 
         <div><h2 className="font-medium">Categories</h2><div className="mt-2 flex flex-wrap gap-2">{profile.categories.length ? profile.categories.map(({ category }) => <span key={category.id} className="rounded-full px-3 py-1 text-sm" style={{ border: "1px solid var(--border)" }}>{category.name}</span>) : <span style={{ color: "var(--muted)" }}>None selected</span>}</div></div>
         {profile.skills && <div><h2 className="font-medium">Skills</h2><div className="mt-2 flex flex-wrap gap-2">{profile.skills.length ? profile.skills.map(({ skill }) => <span key={skill.id} className="rounded-full px-3 py-1 text-sm" style={{ border: "1px solid var(--border)" }}>{skill.name}</span>) : <span style={{ color: "var(--muted)" }}>None selected</span>}</div></div>}
         {profile.portfolioItems && <div><h2 className="font-medium">Portfolio</h2><ul className="mt-2 space-y-2">{profile.portfolioItems.length ? profile.portfolioItems.map(item => <li key={item.id}><a href={item.url} target="_blank" rel="noreferrer" className="inline-flex min-h-11 max-w-full items-center break-all underline">{item.title} ({item.type})</a></li>) : <li style={{ color: "var(--muted)" }}>No portfolio items</li>}</ul></div>}
-        {detail.role === "freelancer" && <div><h2 className="font-medium">Identity Document Review</h2><p className="mt-1 text-sm capitalize" style={{ color: "var(--muted)" }}>{profile.identityDocument?.status ?? "Not submitted"}</p>{identityDocument && <a href={identityDocument.url} target="_blank" rel="noreferrer" className="mt-2 inline-flex min-h-11 items-center underline">View private document</a>}</div>}
+        {detail.role === "freelancer" && <div><h2 className="font-medium">Identity Document Review</h2><p className="mt-1 text-sm capitalize" style={{ color: "var(--muted)" }}>{profile.identityDocument?.status ?? "Not submitted"}</p>{identityDocument && <a href={`/api/users/${detail.id}/identity-document`} target="_blank" rel="noreferrer" className="mt-2 inline-flex min-h-11 items-center underline">View private document</a>}</div>}
+        {detail.role === "client" && <div><h2 className="font-medium">Client documents</h2>{profile.documents?.length ? <ul className="mt-2 space-y-2">{profile.documents.map((document) => <li key={document.id} className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between"><span className="text-sm"><span className="font-medium">{companyDocumentLabel(document.type)}</span> <span className="capitalize" style={{ color: "var(--muted)" }}>({document.uploadStatus})</span></span><a href={`/api/users/${detail.id}/company-documents/${document.id}`} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center underline">View private document</a></li>)}</ul> : <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>No company documents submitted.</p>}</div>}
         <ModerationActions userId={detail.id} status={profile.verificationStatus} identityDocumentStatus={profile.identityDocument?.status} />
       </section>
     </main>

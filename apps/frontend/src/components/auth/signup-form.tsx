@@ -26,11 +26,11 @@ import { useSignupRole } from "@/components/auth/signup-role-context";
 
 const initialState: AuthActionState = {};
 const SIGNUP_LOADING_MESSAGES = [
-  "Creating your Porishrom account...",
+  "Creating your Porisrom account...",
   "Securing your workspace...",
   "Setting up your profile...",
   "Preparing onboarding...",
-  "Welcome to Porishrom.",
+  "Welcome to Porisrom.",
 ];
 
 export function SignupForm() {
@@ -269,7 +269,7 @@ export function SignupForm() {
           className="mt-0.5 size-5 rounded-md border-primary/35 bg-white text-white shadow-sm data-checked:border-primary data-checked:bg-primary"
         />
         <span className="text-sm leading-5 text-accent-foreground">
-          I agree to Porishrom&apos;s{" "}
+          I agree to Porisrom&apos;s{" "}
           <Link href="/terms" className="font-semibold text-primary underline-offset-2 hover:underline">
             Terms of Service
           </Link>{" "}

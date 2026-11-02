@@ -15,6 +15,7 @@ export const FREELANCER_NAV_ITEMS = [
   { label: "Portfolio", href: "/dashboard/freelancer/portfolio", icon: ImageIcon },
   { label: "Earnings", href: "/dashboard/freelancer/earnings", icon: Wallet },
   { label: "Reviews", href: "/dashboard/freelancer/reviews", icon: Star },
+  { label: "Safety & support", href: "/safety", icon: Settings },
   { label: "Settings", href: "/dashboard/freelancer/settings", icon: Settings },
 ];
 
@@ -25,5 +26,5 @@ export const MOBILE_PRIMARY_NAV_ITEMS = [
 ];
 
 export const MOBILE_MORE_NAV_ITEMS = FREELANCER_NAV_ITEMS.filter((item) =>
-  ["/dashboard/freelancer/portfolio", "/dashboard/freelancer/settings"].includes(item.href)
+  ["/dashboard/freelancer/portfolio", "/dashboard/freelancer/settings", "/safety"].includes(item.href)
 );

@@ -29,3 +29,30 @@ Thumbs.db
 
 # misc
 *.tsbuildinfo
+
+# Private local documents must never enter source control.
+apps/backend/private-uploads/
+
+# Isolated browser verification build output.
+.next-security-dev/
+
+# Local verification state, fixtures, dumps and operator configuration.
+/tmp/
+/.aws/
+/.codex/
+**/uploads/
+**/private-uploads/
+**/.next-*/
+**/coverage/
+**/test-results/
+**/playwright-report/
+**/pgdata/
+**/pg_wal/
+**/PG_VERSION
+*.dump
+*.backup
+*.sql.gz
+*.pem
+*.key
+*.pfx
+*.p12

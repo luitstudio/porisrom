@@ -6,11 +6,23 @@ import { PrismaService } from "../prisma/prisma.service";
 export class NotificationsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  listMine(userId: string) {
-    return this.prisma.db.notification.findMany({
+  async listMine(userId: string) {
+    const notifications = await this.prisma.db.notification.findMany({
       where: { OR: [{ userId }, { userId: null }] },
+      include: {
+        readStates: {
+          where: { userId },
+          select: { readAt: true },
+          take: 1,
+        },
+      },
       orderBy: { createdAt: "desc" },
     });
+
+    return notifications.map(({ readStates, ...notification }) => ({
+      ...notification,
+      isRead: notification.userId === null ? readStates.length > 0 : notification.isRead,
+    }));
   }
 
   async markRead(userId: string, id: string) {
@@ -18,6 +30,15 @@ export class NotificationsService {
     if (!notification || (notification.userId !== null && notification.userId !== userId)) {
       throw new NotFoundException("Notification not found");
     }
+    if (notification.userId === null) {
+      await this.prisma.db.notificationReadState.upsert({
+        where: { notificationId_userId: { notificationId: id, userId } },
+        create: { notificationId: id, userId },
+        update: { readAt: new Date() },
+      });
+      return { ...notification, isRead: true };
+    }
+
     return this.prisma.db.notification.update({ where: { id }, data: { isRead: true } });
   }
 }

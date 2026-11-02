@@ -1,5 +1,6 @@
 "use client";
 
+import { CancellationSafety } from "@/components/safety/safety-controls";
 import * as React from "react";
 import { Activity, BadgeCheck, CircleDollarSign, ClipboardList, FileCheck2, Send, Star, XCircle } from "lucide-react";
 
@@ -24,6 +25,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
+import { useConversationAccess } from "@/lib/use-conversation-access";
+
 const DELIVERABLE_TYPES: { value: DeliverableType; label: string }[] = [
   { value: "drive_link", label: "Drive link" },
   { value: "github_link", label: "GitHub link" },
@@ -35,6 +38,8 @@ const DELIVERABLE_TYPES: { value: DeliverableType; label: string }[] = [
 
 const POLL_INTERVAL_MS = 6000;
 const TERMINAL_STATUSES = new Set(["rejected", "cancelled", "completed"]);
+const MIN_ASSIGNMENT_BUDGET = 1;
+const ASSIGNMENT_TIME_ZONE = "Asia/Kolkata";
 
 type WorkAssignmentPanelProps = {
   conversationId: string;
@@ -58,6 +63,40 @@ function formatDate(iso: string) {
 
 function formatDateTime(iso: string) {
   return iso.slice(0, 16).replace("T", " ") + " UTC";
+}
+
+function dateKeyInTimeZone(date: Date, timeZone = ASSIGNMENT_TIME_ZONE) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+  return `${year}-${month}-${day}`;
+}
+
+function addDaysToDateKey(dateKey: string, days: number) {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const shifted = new Date(Date.UTC(year, month - 1, day + days, 12));
+  return shifted.toISOString().slice(0, 10);
+}
+
+function tomorrowInputValue() {
+  return addDaysToDateKey(dateKeyInTimeZone(new Date()), 1);
+}
+
+function assignmentTermError(budgetAmount: string | number, dueDate?: string) {
+  const budget = Number(budgetAmount);
+  if (!Number.isFinite(budget) || budget < MIN_ASSIGNMENT_BUDGET) {
+    return "Budget must be at least ₹1.";
+  }
+  if (dueDate && dueDate < tomorrowInputValue()) {
+    return "Due date must be at least tomorrow.";
+  }
+  return null;
 }
 
 function actionLabel(action: string) {
@@ -93,6 +132,10 @@ function actionLabel(action: string) {
       return "confirmed matching payment — assignment completed";
     case "payment_disputed":
       return "hit repeated payment mismatches — flagged for admin review";
+    case "payment_dispute_reopened":
+      return "reopened payment-reference claims after administrator review";
+    case "payment_administratively_resolved":
+      return "completed the assignment after administrator review (bank settlement not verified)";
     default:
       return action;
   }
@@ -105,6 +148,7 @@ export function WorkAssignmentPanel({
   otherPartyName,
   initialAssignments,
 }: WorkAssignmentPanelProps) {
+  const { readOnly, checked } = useConversationAccess(conversationId);
   const [assignments, setAssignments] = React.useState<WorkAssignment[]>(initialAssignments);
   const [showCreateForm, setShowCreateForm] = React.useState(false);
   const [showModificationForm, setShowModificationForm] = React.useState(false);
@@ -139,6 +183,7 @@ export function WorkAssignmentPanel({
   const isFreelancer = viewerRole === "freelancer";
 
   async function runAction(fn: () => Promise<{ error?: string }>) {
+    if (readOnly) return false;
     setPending(true);
     setError(null);
     const result = await fn();
@@ -160,6 +205,9 @@ export function WorkAssignmentPanel({
     <Card className="mb-4"><CardContent className="p-4">
       <h2 className="text-sm font-semibold text-foreground">Work Assignment</h2>
 
+      {checked && readOnly && <p role="status" className="mt-2 text-sm text-muted-foreground">Shared work is read-only because a counterpart account is unavailable. Contact support. Existing records are preserved.</p>}
+      {active && !TERMINAL_STATUSES.has(active.status) && <CancellationSafety id={active.id} pendingOther={!readOnly && !!active.cancelRequestedById && active.cancelRequestedById !== viewerUserId} />}
+      <fieldset disabled={readOnly} className="min-w-0">
       {!active || TERMINAL_STATUSES.has(active.status) ? (
         <div className="mt-2">
           {active && active.status === "completed" ? (
@@ -305,7 +353,11 @@ export function WorkAssignmentPanel({
                 viewerUserId={viewerUserId}
                 otherPartyName={otherPartyName}
                 pending={pending}
-                onCancel={() => runAction(() => cancelWorkAssignmentAction(active.id))}
+                onCancel={() => {
+                  const note = active.cancelRequestedById ? undefined : window.prompt("Reason for cancellation (at least 10 characters)")?.trim();
+                  if (!active.cancelRequestedById && (!note || note.length < 10)) return;
+                  void runAction(() => cancelWorkAssignmentAction(active.id, note));
+                }}
               />
               {isFreelancer && !showDeliverableForm && (
                 <Button size="sm" className="self-start" onClick={() => setShowDeliverableForm(true)}>
@@ -409,13 +461,14 @@ export function WorkAssignmentPanel({
         </div>
       )}
 
+      </fieldset>
       {selectedCompleted && (
         <CompletedAssignmentsSection
           assignments={completedAssignments}
           selected={selectedCompleted}
           viewerUserId={viewerUserId}
           otherPartyName={otherPartyName}
-          pending={pending}
+          pending={pending || readOnly}
           onSelect={setSelectedCompletedId}
           onReview={(assignmentId, rating, comment) =>
             runAction(() => createReviewAction(assignmentId, rating, comment))
@@ -439,7 +492,8 @@ export function WorkAssignmentPanel({
               .map((event) => (
                 <li key={event.id} className="relative pb-5 pl-5 last:pb-0"><TimelineMarker action={event.action} /><div className="max-w-2xl text-sm leading-5 text-foreground">
                   <span className="font-medium text-muted-foreground">
-                    {event.actorId === viewerUserId ? "You" : otherPartyName}
+                    {["payment_dispute_reopened", "payment_administratively_resolved"].includes(event.action)
+                      ? "Administrator" : event.actorId === viewerUserId ? "You" : otherPartyName}
                   </span>{" "}
                   <span className="font-medium text-foreground">{actionLabel(event.action)}</span>
                   {event.note && <span className="italic"> — &quot;{event.note}&quot;</span>}
@@ -548,12 +602,19 @@ function CreateAssignmentForm({
   const [description, setDescription] = React.useState("");
   const [budgetAmount, setBudgetAmount] = React.useState("");
   const [dueDate, setDueDate] = React.useState("");
+  const [validationError, setValidationError] = React.useState<string | null>(null);
+  const minimumDueDate = tomorrowInputValue();
 
   return (
     <form
       className="mt-2 flex flex-col gap-2"
       onSubmit={(e) => {
         e.preventDefault();
+        const nextError = assignmentTermError(budgetAmount, dueDate);
+        if (nextError) {
+          setValidationError(nextError);
+          return;
+        }
         onSubmit({
           title,
           description,
@@ -581,19 +642,29 @@ function CreateAssignmentForm({
         <Input
           required
           type="number"
-          min={0}
+          min={MIN_ASSIGNMENT_BUDGET}
           placeholder="Budget (INR)"
           value={budgetAmount}
-          onChange={(e) => setBudgetAmount(e.target.value)}
+          onChange={(e) => {
+            setBudgetAmount(e.target.value);
+            setValidationError(null);
+          }}
+          aria-invalid={validationError?.startsWith("Budget") ? true : undefined}
           className="h-10 flex-1 rounded-lg border border-input bg-transparent px-3 text-sm text-foreground"
         />
         <Input
           type="date"
+          min={minimumDueDate}
           value={dueDate}
-          onChange={(e) => setDueDate(e.target.value)}
+          onChange={(e) => {
+            setDueDate(e.target.value);
+            setValidationError(null);
+          }}
+          aria-invalid={validationError?.startsWith("Due date") ? true : undefined}
           className="h-10 rounded-lg border border-input bg-transparent px-3 text-sm text-foreground"
         />
       </div>
+      {validationError && <p className="text-sm text-destructive">{validationError}</p>}
       <div className="flex gap-2">
         <Button type="submit" size="sm" disabled={pending}>
           Send
@@ -694,9 +765,9 @@ function SubmitDeliverableForm({
         onSubmit({ type, url, note: note || undefined });
       }}
     >
-      <p className="text-xs leading-5 text-muted-foreground">Provide a shareable link to the completed work. Files are not uploaded to Porishrom.</p>
+      <p className="text-xs leading-5 text-muted-foreground">Provide a shareable link to the completed work. Files are not uploaded to Porisrom.</p>
       <Select value={type} onValueChange={(value) => setType(value as DeliverableType)}>
-        <SelectTrigger className="h-10 w-full"><SelectValue /></SelectTrigger>
+        <SelectTrigger aria-label="Deliverable type" className="h-10 w-full"><SelectValue /></SelectTrigger>
         <SelectContent>{DELIVERABLE_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
       </Select>
       <Input
@@ -823,7 +894,7 @@ function ReviewSection({
     >
       <p className="text-sm font-medium text-foreground">Rate {otherPartyName}</p>
       <Select value={String(rating)} onValueChange={(value) => setRating(Number(value))}>
-        <SelectTrigger className="h-10 w-32"><SelectValue /></SelectTrigger>
+        <SelectTrigger aria-label={`Rating for ${otherPartyName}`} className="h-10 w-32"><SelectValue /></SelectTrigger>
         <SelectContent>{[5, 4, 3, 2, 1].map((n) => <SelectItem key={n} value={String(n)}>{n} / 5</SelectItem>)}</SelectContent>
       </Select>
       <Textarea
@@ -854,14 +925,28 @@ function ReviseAssignmentForm({
   const [title, setTitle] = React.useState(current.title);
   const [description, setDescription] = React.useState(current.description);
   const [budgetAmount, setBudgetAmount] = React.useState(current.budgetAmount);
+  const [dueDate, setDueDate] = React.useState(current.dueDate?.slice(0, 10) ?? "");
   const [note, setNote] = React.useState("");
+  const [validationError, setValidationError] = React.useState<string | null>(null);
+  const minimumDueDate = tomorrowInputValue();
 
   return (
     <form
       className="flex flex-col gap-2"
       onSubmit={(e) => {
         e.preventDefault();
-        onSubmit({ title, description, budgetAmount: Number(budgetAmount), note: note || undefined });
+        const nextError = assignmentTermError(budgetAmount, dueDate);
+        if (nextError) {
+          setValidationError(nextError);
+          return;
+        }
+        onSubmit({
+          title,
+          description,
+          budgetAmount: Number(budgetAmount),
+          dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
+          note: note || undefined,
+        });
       }}
     >
       <Input
@@ -880,9 +965,24 @@ function ReviseAssignmentForm({
       <Input
         required
         type="number"
-        min={0}
+        min={MIN_ASSIGNMENT_BUDGET}
         value={budgetAmount}
-        onChange={(e) => setBudgetAmount(e.target.value)}
+        onChange={(e) => {
+          setBudgetAmount(e.target.value);
+          setValidationError(null);
+        }}
+        aria-invalid={validationError?.startsWith("Budget") ? true : undefined}
+        className="h-10 rounded-lg border border-input bg-transparent px-3 text-sm text-foreground"
+      />
+      <Input
+        type="date"
+        min={minimumDueDate}
+        value={dueDate}
+        onChange={(e) => {
+          setDueDate(e.target.value);
+          setValidationError(null);
+        }}
+        aria-invalid={validationError?.startsWith("Due date") ? true : undefined}
         className="h-10 rounded-lg border border-input bg-transparent px-3 text-sm text-foreground"
       />
       <Textarea
@@ -892,6 +992,7 @@ function ReviseAssignmentForm({
         rows={2}
         className="rounded-lg border border-input bg-transparent px-3 py-2 text-sm text-foreground"
       />
+      {validationError && <p className="text-sm text-destructive">{validationError}</p>}
       <div className="flex gap-2">
         <Button type="submit" size="sm" disabled={pending}>
           Send Revision

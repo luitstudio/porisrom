@@ -12,7 +12,7 @@ export default function LoginPage() {
   return (
     <AuthScreen
       title="Welcome back"
-      description="Log in to continue with Porishrom."
+      description="Log in to continue with Porisrom."
       footer={
         <>
           Don&apos;t have an account?{" "}

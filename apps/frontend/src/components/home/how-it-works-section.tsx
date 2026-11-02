@@ -5,10 +5,10 @@ import { ArrowRight, BadgeIndianRupee, BriefcaseBusiness, Search, UserRound, typ
 type JourneyStep = { number: string; title: string; description: string; icon: LucideIcon; href: string; cta: string; image: string; alt: string; tone: "cream" | "red" | "green" };
 
 const STEPS: JourneyStep[] = [
-  { number: "01", title: "Create your profile", description: "Showcase your skills, experience, and expertise so the right clients can discover you.", icon: UserRound, href: "/auth/signup", cta: "Get started", image: "/illustrations/porishrom-how-it-works/profile.png", alt: "Hand-drawn freelancer creating a professional profile on a laptop", tone: "cream" },
-  { number: "02", title: "Discover matching gigs", description: "Find projects that match your skills, interests, and experience.", icon: Search, href: "/freelancers", cta: "Explore gigs", image: "/illustrations/porishrom-how-it-works/gigs.png", alt: "Hand-drawn freelancer searching through project opportunities", tone: "red" },
-  { number: "03", title: "Manage your work", description: "Track projects, collaborate with clients, and keep everything organized in one place.", icon: BriefcaseBusiness, href: "/auth/login", cta: "See how it works", image: "/illustrations/porishrom-how-it-works/work.png", alt: "Hand-drawn professional managing a project checklist on a laptop", tone: "cream" },
-  { number: "04", title: "Pay when work is done", description: "Agree on the scope, complete the work, and receive the agreed payment directly.", icon: BadgeIndianRupee, href: "/auth/signup", cta: "Learn about payments", image: "/illustrations/porishrom-how-it-works/payment.png", alt: "Hand-drawn freelancer celebrating a completed payment", tone: "green" },
+  { number: "01", title: "Create your profile", description: "Showcase your skills, experience, and expertise so the right clients can discover you.", icon: UserRound, href: "/auth/signup", cta: "Get started", image: "/illustrations/porisrom-how-it-works/profile.png", alt: "Hand-drawn freelancer creating a professional profile on a laptop", tone: "cream" },
+  { number: "02", title: "Discover matching gigs", description: "Find projects that match your skills, interests, and experience.", icon: Search, href: "/freelancers", cta: "Explore gigs", image: "/illustrations/porisrom-how-it-works/gigs.png", alt: "Hand-drawn freelancer searching through project opportunities", tone: "red" },
+  { number: "03", title: "Manage your work", description: "Track projects, collaborate with clients, and keep everything organized in one place.", icon: BriefcaseBusiness, href: "/auth/login", cta: "See how it works", image: "/illustrations/porisrom-how-it-works/work.png", alt: "Hand-drawn professional managing a project checklist on a laptop", tone: "cream" },
+  { number: "04", title: "Pay when work is done", description: "Agree on the scope, complete the work, and receive the agreed payment directly.", icon: BadgeIndianRupee, href: "/auth/signup", cta: "Learn about payments", image: "/illustrations/porisrom-how-it-works/payment.png", alt: "Hand-drawn freelancer celebrating a completed payment", tone: "green" },
 ];
 
 const cardTone = { cream: "bg-[#f7f3e9] text-[#171815]", red: "bg-[#ef3826] text-[#fff9ef]", green: "bg-[#075a50] text-[#fff9ef]" } as const;
@@ -23,11 +23,11 @@ export function HowItWorksSection() {
             <h2 id="how-it-works-title" className="mt-4 font-display text-4xl font-semibold leading-[0.94] tracking-[-0.055em] text-[#fff9ef] sm:text-6xl lg:text-[4.6rem]">
               It all starts with the right profile{" "}<span className="text-[#9be65b]">and the right connection.</span>
             </h2>
-            <p className="mt-6 max-w-[38rem] text-base leading-7 text-[#d7d5cc] sm:text-lg">From creating your profile to getting paid, Porishrom makes freelancing simple, transparent, and human.</p>
+            <p className="mt-6 max-w-[38rem] text-base leading-7 text-[#d7d5cc] sm:text-lg">From creating your profile to getting paid, Porisrom makes freelancing simple, transparent, and human.</p>
           </div>
 
           <div className="relative min-h-[260px] overflow-hidden rounded-[24px] bg-[#f7f3e9] sm:min-h-[350px] sm:rounded-[28px] lg:min-h-[390px]">
-            <Image src="/illustrations/porishrom-how-it-works/hero-collaboration.png" alt="Hand-drawn Porishrom freelancer and client collaborating over project work" fill sizes="(min-width: 1024px) 52vw, 100vw" className="object-cover object-center" />
+            <Image src="/illustrations/porisrom-how-it-works/hero-collaboration.png" alt="Hand-drawn Porisrom freelancer and client collaborating over project work" fill sizes="(min-width: 1024px) 52vw, 100vw" className="object-cover object-center" />
           </div>
         </div>
 

@@ -1,3 +1,4 @@
+import { activeMarketplaceFixture } from "./active-marketplace-fixture";
 import { describe, expect, it, vi } from "vitest";
 
 import { CompanyProfileService } from "../src/profiles/company-profile.service";
@@ -5,6 +6,8 @@ import { FreelancerProfileService } from "../src/profiles/freelancer-profile.ser
 import type { PrismaService } from "../src/prisma/prisma.service";
 import { ReviewsService } from "../src/reviews/reviews.service";
 import { WorkAssignmentsService } from "../src/work-assignments/work-assignments.service";
+
+const profilePhotos = { uploadPublicPhoto: vi.fn() };
 
 function transactionalPrisma<T extends object>(tx: T) {
   return {
@@ -17,16 +20,19 @@ function transactionalPrisma<T extends object>(tx: T) {
 describe("transaction regressions", () => {
   it("uses one transaction client for freelancer onboarding writes", async () => {
     const tx = {
+      ...activeMarketplaceFixture(),
       freelancerProfile: {
         findUnique: vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce({ id: "profile-1" }),
         upsert: vi.fn().mockResolvedValue({ id: "profile-1" }),
       },
+      category: { count: vi.fn().mockResolvedValue(1) },
+      skill: { count: vi.fn().mockResolvedValue(1) },
       freelancerCategory: { deleteMany: vi.fn(), createMany: vi.fn() },
       freelancerSkill: { deleteMany: vi.fn(), createMany: vi.fn() },
       user: { update: vi.fn() },
     };
     const prisma = transactionalPrisma(tx);
-    const service = new FreelancerProfileService(prisma);
+    const service = new FreelancerProfileService(prisma, profilePhotos as never);
 
     await service.upsertOwn("user-1", {
       categoryIds: ["category-1"],
@@ -47,15 +53,17 @@ describe("transaction regressions", () => {
 
   it("uses one transaction client for company onboarding writes", async () => {
     const tx = {
+      ...activeMarketplaceFixture(),
       companyProfile: {
         findUnique: vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce({ id: "profile-1" }),
         upsert: vi.fn().mockResolvedValue({ id: "profile-1" }),
       },
+      category: { count: vi.fn().mockResolvedValue(1) },
       companyCategory: { deleteMany: vi.fn(), createMany: vi.fn() },
       user: { update: vi.fn() },
     };
     const prisma = transactionalPrisma(tx);
-    const service = new CompanyProfileService(prisma);
+    const service = new CompanyProfileService(prisma, profilePhotos as never);
 
     await service.upsertOwn("user-1", { companyName: "Company", categoryIds: ["category-1"] });
 
@@ -71,13 +79,14 @@ describe("transaction regressions", () => {
 
   it("creates a review and updates its rating aggregate on one transaction client", async () => {
     const tx = {
+      ...activeMarketplaceFixture(),
       workAssignment: {
         findUnique: vi.fn().mockResolvedValue({
           status: "completed",
           conversation: { connection: { requesterId: "client-1", receiverId: "freelancer-1" } },
         }),
       },
-      user: { findUnique: vi.fn().mockResolvedValue({ role: "client" }) },
+      user: { ...activeMarketplaceFixture().user, findUnique: vi.fn().mockResolvedValue({ role: "client" }) },
       review: {
         findUnique: vi.fn().mockResolvedValue(null),
         create: vi.fn().mockResolvedValue({ id: "review-1" }),
@@ -99,6 +108,7 @@ describe("transaction regressions", () => {
 
   it("creates a work assignment and its initial event on one transaction client", async () => {
     const tx = {
+      ...activeMarketplaceFixture(),
       workAssignment: { create: vi.fn().mockResolvedValue({ id: "assignment-1" }) },
       workAssignmentEvent: { create: vi.fn() },
       notification: { create: vi.fn() },
@@ -112,7 +122,7 @@ describe("transaction regressions", () => {
             connection: { requesterId: "client-1", receiverId: "freelancer-1" },
           }),
         },
-        user: { findUnique: vi.fn().mockResolvedValue({ role: "client" }) },
+        user: { ...activeMarketplaceFixture().user, findUnique: vi.fn().mockResolvedValue({ role: "client" }) },
         workAssignment: { findUnique: vi.fn().mockResolvedValue(null) },
       },
     } as unknown as PrismaService;

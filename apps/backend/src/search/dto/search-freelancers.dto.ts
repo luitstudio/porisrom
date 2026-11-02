@@ -1,28 +1,47 @@
 import { Transform, Type } from "class-transformer";
 import { IsBoolean, IsInt, IsOptional, IsString, Max, Min } from "class-validator";
 
+function optionalTrimmedString(value: unknown) {
+  if (typeof value !== "string") return value;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function booleanQueryParam(value: unknown) {
+  if (value === undefined || value === "") return undefined;
+  if (value === true || value === "true") return true;
+  if (value === false || value === "false") return false;
+  return value;
+}
+
 export class SearchFreelancersDto {
   @IsOptional()
+  @Transform(({ value }) => optionalTrimmedString(value))
   @IsString()
   keyword?: string;
 
   @IsOptional()
+  @Transform(({ value }) => optionalTrimmedString(value))
   @IsString()
   categoryId?: string;
 
   @IsOptional()
+  @Transform(({ value }) => optionalTrimmedString(value))
   @IsString()
   skillId?: string;
 
   @IsOptional()
+  @Transform(({ value }) => optionalTrimmedString(value))
   @IsString()
   state?: string;
 
   @IsOptional()
+  @Transform(({ value }) => optionalTrimmedString(value))
   @IsString()
   district?: string;
 
   @IsOptional()
+  @Transform(({ value }) => optionalTrimmedString(value))
   @IsString()
   experienceLevel?: string;
 
@@ -34,7 +53,7 @@ export class SearchFreelancersDto {
   minRating?: number;
 
   @IsOptional()
-  @Transform(({ value }) => value === "true" || value === true)
+  @Transform(({ value }) => booleanQueryParam(value))
   @IsBoolean()
   verifiedOnly?: boolean;
 

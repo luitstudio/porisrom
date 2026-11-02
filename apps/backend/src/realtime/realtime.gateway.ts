@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Optional } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
 import { WebSocketGateway, type OnGatewayConnection, type OnGatewayInit } from "@nestjs/websockets";
@@ -7,10 +7,15 @@ import type { Server, Socket } from "socket.io";
 import { PrismaService } from "../prisma/prisma.service";
 import type { JwtPayload } from "../auth/auth.service";
 import { frontendOrigins } from "../auth/production-auth-config";
+import { activeSessionUser } from "../auth/session-access";
+import { RealtimeClusterService } from "./realtime-cluster.service";
+import { hasParticipantBlock } from "../marketplace-access";
 
 type AuthenticatedSocketUser = {
   userId: string;
   role: string | null;
+  sessionId: string;
+  expiresAt: number;
 };
 
 type SocketHandshake = Pick<Socket["handshake"], "auth" | "headers">;
@@ -47,10 +52,12 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
+    @Optional() private readonly cluster?: RealtimeClusterService,
   ) {}
 
   afterInit(server: Server) {
     this.server = server;
+    this.cluster?.attach(server);
     server.use((socket, next) => {
       void this.authenticate(socket)
         .then(() => next())
@@ -77,21 +84,48 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection {
       throw new Error("Unauthorized");
     }
 
-    const user = await this.prisma.db.user.findUnique({
-      where: { id: payload.sub },
-      select: { id: true, role: true, status: true },
-    });
-    if (!user || user.status !== "active") {
-      throw new Error("Unauthorized");
-    }
-
-    socket.data.user = { userId: user.id, role: user.role } satisfies AuthenticatedSocketUser;
+    const user = await activeSessionUser(this.prisma, payload);
+    if (!payload.exp || payload.exp * 1000 <= Date.now()) throw new Error("Unauthorized");
+    socket.data.user = { userId: user.userId, role: user.role, sessionId: user.sessionId,
+      expiresAt: Math.min(payload.exp * 1000, user.sessionExpiresAt.getTime()) } satisfies AuthenticatedSocketUser;
   }
 
   handleConnection(socket: Socket) {
     const user = socket.data.user as AuthenticatedSocketUser | undefined;
     if (user?.userId) {
       socket.join(this.userRoom(user.userId));
+      socket.join(`session:${user.sessionId}`);
+      socket.use((_packet, next) => {
+        void activeSessionUser(this.prisma, { sub: user.userId, sid: user.sessionId, role: user.role })
+          .then(() => { if (user.expiresAt <= Date.now()) throw new Error("Expired session"); next(); })
+          .catch(() => { socket.disconnect(true); next(new Error("Unauthorized")); });
+      });
+      const timer = setTimeout(() => socket.disconnect(true), Math.min(2147483647, Math.max(0, user.expiresAt - Date.now())));
+      timer.unref();
+      socket.once("disconnect", () => clearTimeout(timer));
+    }
+  }
+
+  disconnectUser(userId: string) {
+    this.server?.in(this.userRoom(userId)).disconnectSockets(true);
+  }
+
+  disconnectSession(sessionId: string) {
+    this.server?.in(`session:${sessionId}`).disconnectSockets(true);
+  }
+
+  private async emitToActiveUser(userId: string, event: string, value: unknown) {
+    if (!this.server) return;
+    const sockets = await this.server.in(this.userRoom(userId)).fetchSockets();
+    for (const socket of sockets) {
+      const user = socket.data.user as AuthenticatedSocketUser | undefined;
+      try {
+        if (!user || user.userId !== userId || user.expiresAt <= Date.now()) throw new Error("Expired session");
+        await activeSessionUser(this.prisma, { sub: user.userId, sid: user.sessionId, role: user.role });
+        socket.emit(event, value);
+      } catch {
+        socket.disconnect(true);
+      }
     }
   }
 
@@ -115,7 +149,10 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection {
         return;
       }
 
-      this.server.to(this.userRoom(recipientId)).emit("message.created", {
+      const sender = await this.prisma.db.user.findUnique({ where: { id: message.senderId }, select: { status: true } });
+      if (sender?.status !== "active") return;
+      if (await hasParticipantBlock(this.prisma.db, { requesterId, receiverId })) return;
+      await this.emitToActiveUser(recipientId, "message.created", {
         id: message.id,
         conversationId: message.conversationId,
         senderId: message.senderId,
@@ -128,23 +165,23 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection {
     }
   }
 
-  emitNotificationCreated(notification: PersistedNotification) {
+  async emitNotificationCreated(notification: PersistedNotification) {
     if (!notification.userId || !this.server) {
       return;
     }
-    this.server.to(this.userRoom(notification.userId)).emit("notification.created", {
+    try { await this.emitToActiveUser(notification.userId, "notification.created", {
       id: notification.id,
       type: notification.type,
       message: notification.message,
       isRead: notification.isRead,
       createdAt: notification.createdAt.toISOString(),
-    });
+    }); } catch { /* REST remains the recovery path; never bypass session checks. */ }
   }
 
-  emitWorkAssignmentUpdated(userIds: string[], workAssignmentId: string) {
+  async emitWorkAssignmentUpdated(userIds: string[], workAssignmentId: string) {
     if (!this.server) return;
     for (const userId of new Set(userIds)) {
-      this.server.to(this.userRoom(userId)).emit("work-assignment.updated", { workAssignmentId });
+      try { await this.emitToActiveUser(userId, "work-assignment.updated", { workAssignmentId }); } catch { /* Recover through REST. */ }
     }
   }
 

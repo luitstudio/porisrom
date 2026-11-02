@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 
 import { PrismaService } from "../prisma/prisma.service";
 import type { CreatePortfolioItemDto } from "./dto/create-portfolio-item.dto";
 import type { UpdateFreelancerProfileDto } from "./dto/update-freelancer-profile.dto";
+import { ProfilePhotoStorageService } from "./profile-photo-storage.service";
 
 const PROFILE_INCLUDE = {
   categories: { include: { category: true } },
@@ -15,6 +16,7 @@ const PUBLIC_PROFILE_SELECT = {
   id: true,
   userId: true,
   bio: true,
+  profilePhotoUrl: true,
   state: true,
   district: true,
   languages: true,
@@ -33,6 +35,7 @@ const PUBLIC_PROFILE_SELECT = {
 const OWNER_PROFILE_SELECT = {
   id: true,
   bio: true,
+  profilePhotoUrl: true,
   address: true,
   state: true,
   district: true,
@@ -56,9 +59,21 @@ const OWNER_PROFILE_SELECT = {
   },
 } as const;
 
+type ProfileRelationLookupClient = {
+  category: {
+    count: (args: { where: { id: { in: string[] } } }) => Promise<number>;
+  };
+  skill: {
+    count: (args: { where: { id: { in: string[] } } }) => Promise<number>;
+  };
+};
+
 @Injectable()
 export class FreelancerProfileService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly profilePhotos: ProfilePhotoStorageService,
+  ) {}
 
   async getOwnProfile(userId: string) {
     const profile = await this.prisma.db.freelancerProfile.findUnique({
@@ -82,7 +97,7 @@ export class FreelancerProfileService {
 
   async getPublicProfile(id: string) {
     const profile = await this.prisma.db.freelancerProfile.findFirst({
-      where: { id, verificationStatus: "approved" },
+      where: { id, verificationStatus: "approved", user: { role: "freelancer", status: "active" } },
       select: PUBLIC_PROFILE_SELECT,
     });
     if (!profile) {
@@ -94,6 +109,8 @@ export class FreelancerProfileService {
   async upsertOwn(userId: string, dto: UpdateFreelancerProfileDto) {
     return this.prisma.db.$transaction(async (tx) => {
       const existing = await tx.freelancerProfile.findUnique({ where: { userId } });
+      if (dto.categoryIds) await this.assertCategoryIdsExist(tx, dto.categoryIds);
+      if (dto.skillIds) await this.assertSkillIdsExist(tx, dto.skillIds);
 
       const profile = await tx.freelancerProfile.upsert({
         where: { userId },
@@ -145,19 +162,51 @@ export class FreelancerProfileService {
     });
   }
 
+  private async assertCategoryIdsExist(tx: ProfileRelationLookupClient, categoryIds: string[]) {
+    const uniqueCategoryIds = [...new Set(categoryIds)];
+    if (uniqueCategoryIds.length === 0) return;
+
+    const found = await tx.category.count({ where: { id: { in: uniqueCategoryIds } } });
+    if (found !== uniqueCategoryIds.length) {
+      throw new BadRequestException("One or more category IDs are invalid");
+    }
+  }
+
+  private async assertSkillIdsExist(tx: ProfileRelationLookupClient, skillIds: string[]) {
+    const uniqueSkillIds = [...new Set(skillIds)];
+    if (uniqueSkillIds.length === 0) return;
+
+    const found = await tx.skill.count({ where: { id: { in: uniqueSkillIds } } });
+    if (found !== uniqueSkillIds.length) {
+      throw new BadRequestException("One or more skill IDs are invalid");
+    }
+  }
+
+  async uploadProfilePhoto(userId: string, file: Express.Multer.File | undefined) {
+    const profile = await this.prisma.db.freelancerProfile.findUnique({ where: { userId }, select: { id: true } });
+    if (!profile) {
+      throw new NotFoundException("Complete your freelancer profile before adding a profile photo");
+    }
+
+    const { url } = await this.profilePhotos.uploadPublicPhoto(`profiles/freelancers/${userId}/avatar`, file);
+    return this.prisma.db.freelancerProfile.update({
+      where: { userId },
+      data: { profilePhotoUrl: url },
+      select: { id: true, profilePhotoUrl: true },
+    });
+  }
+
   async addPortfolioItem(userId: string, dto: CreatePortfolioItemDto) {
     const profile = await this.prisma.db.freelancerProfile.findUnique({ where: { userId } });
     if (!profile) {
       throw new NotFoundException("Complete your profile before adding portfolio items");
     }
-    return this.prisma.db.portfolioItem.create({
-      data: {
-        freelancerProfileId: profile.id,
-        title: dto.title,
-        description: dto.description,
-        type: dto.type,
-        url: dto.url,
-      },
+    return this.prisma.db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${userId} FOR UPDATE`;
+      const existing = await tx.portfolioItem.findFirst({ where: { freelancerProfileId: profile.id, url: dto.url, type: dto.type } });
+      if (existing) return existing;
+      return tx.portfolioItem.create({ data: { freelancerProfileId: profile.id, title: dto.title,
+        description: dto.description, type: dto.type, url: dto.url } });
     });
   }
 

@@ -39,6 +39,7 @@ export default async function UsersPage({
         <form className="flex gap-2 text-sm">
           <select
             name="role"
+            aria-label="Filter users by role"
             defaultValue={role ?? ""}
             className="rounded-md border px-2 py-1"
             style={{ borderColor: "var(--border)", background: "var(--background)" }}

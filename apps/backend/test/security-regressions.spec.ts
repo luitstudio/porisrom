@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, NotFoundException, UnauthorizedException } from "@nestjs/common";
 import type { ConfigService } from "@nestjs/config";
 import { Reflector } from "@nestjs/core";
-import type { PaymentVerification } from "@porishrom/database";
+import type { PaymentVerification } from "@porisrom/database";
 import { describe, expect, it, vi } from "vitest";
 
 import { AdminService } from "../src/admin/admin.service";
@@ -19,6 +19,8 @@ function prismaService(db: object) {
   return { db } as unknown as PrismaService;
 }
 
+const profilePhotos = { uploadPublicPhoto: vi.fn() };
+
 describe("security regressions", () => {
   it.each([
     ["setBlocked", { status: "blocked" }],
@@ -26,13 +28,20 @@ describe("security regressions", () => {
   ] as const)("admin %s excludes passwordHash", async (method, response) => {
     const update = vi.fn().mockResolvedValue({ id: "user-1", ...response });
     const service = new AdminService(
-      prismaService({ user: { findUnique: vi.fn().mockResolvedValue({ id: "user-1", status: "active" }), update } }),
+      prismaService({
+        $transaction: (fn: (tx: object) => unknown) => fn({
+          $queryRaw: vi.fn(), adminActionLog: { create: vi.fn() },
+          user: { findUnique: vi.fn(async ({ where }) => where.id === "moderator" ? { role: "admin", status: "active" } : { id: "user-1", status: "active" }), update },
+          authSession: { updateMany: vi.fn() }, connection: { findMany: vi.fn().mockResolvedValue([]) },
+        }),
+        user: { findUnique: vi.fn(async ({ where }) => where.id === "moderator" ? { role: "admin", status: "active" } : { id: "user-1", status: "active" }), update },
+      }),
     );
 
     const result =
       method === "setBlocked"
-        ? await service.setBlocked("user-1", true)
-        : await service.softDeleteUser("user-1");
+        ? await service.setBlocked("user-1", true, "moderator")
+        : await service.softDeleteUser("user-1", "moderator");
 
     expect(update.mock.calls[0]?.[0].select).toBeDefined();
     expect(update.mock.calls[0]?.[0].select.passwordHash).toBeUndefined();
@@ -44,10 +53,11 @@ describe("security regressions", () => {
       { getOrThrow: vi.fn().mockReturnValue("test-secret") } as unknown as ConfigService,
       prismaService({
         user: { findUnique: vi.fn().mockResolvedValue({ id: "user-1", role: "client", status }) },
+        authSession: { findUnique: vi.fn().mockResolvedValue({ userId: "user-1", expiresAt: new Date(Date.now() + 60000), revokedAt: null }) },
       }),
     );
 
-    await expect(strategy.validate({ sub: "user-1", role: "freelancer" })).rejects.toBeInstanceOf(
+    await expect(strategy.validate({ sub: "user-1", sid: "session-1", role: "freelancer" })).rejects.toBeInstanceOf(
       UnauthorizedException,
     );
   });
@@ -59,12 +69,14 @@ describe("security regressions", () => {
         user: {
           findUnique: vi.fn().mockResolvedValue({ id: "user-1", role: "client", status: "active" }),
         },
+        authSession: { findUnique: vi.fn().mockResolvedValue({ userId: "user-1", expiresAt: new Date(Date.now() + 60000), revokedAt: null }) },
       }),
     );
 
-    await expect(strategy.validate({ sub: "user-1", role: "freelancer" })).resolves.toEqual({
+    await expect(strategy.validate({ sub: "user-1", sid: "session-1", role: "freelancer" })).resolves.toEqual({
       userId: "user-1",
       role: "client",
+      sessionId: "session-1",
     });
   });
 
@@ -73,11 +85,11 @@ describe("security regressions", () => {
     [CompanyProfileService, "companyProfile"],
   ] as const)("rejects non-approved public profiles via %s", async (Service, model) => {
     const findFirst = vi.fn().mockResolvedValue(null);
-    const service = new Service(prismaService({ [model]: { findFirst } }));
+    const service = new Service(prismaService({ [model]: { findFirst } }), profilePhotos as never);
 
     await expect(service.getPublicProfile("profile-1")).rejects.toBeInstanceOf(NotFoundException);
     expect(findFirst).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: "profile-1", verificationStatus: "approved" } }),
+      expect.objectContaining({ where: { id: "profile-1", verificationStatus: "approved", user: { role: model === "freelancerProfile" ? "freelancer" : "client", status: "active" } } }),
     );
   });
 
@@ -94,7 +106,7 @@ describe("security regressions", () => {
       categories: [],
       ...(model === "freelancerProfile" ? { skills: [], portfolioItems: [] } : {}),
     });
-    const service = new Service(prismaService({ [model]: { findUnique } }));
+    const service = new Service(prismaService({ [model]: { findUnique } }), profilePhotos as never);
 
     const result = await service.getOwnProfile("user-1");
 
@@ -119,6 +131,7 @@ describe("security regressions", () => {
   ] as const)("returns 404 when a %s owner profile does not exist", async (Service, model) => {
     const service = new Service(
       prismaService({ [model]: { findUnique: vi.fn().mockResolvedValue(null) } }),
+      profilePhotos as never,
     );
 
     await expect(service.getOwnProfile("user-1")).rejects.toBeInstanceOf(NotFoundException);
@@ -166,7 +179,7 @@ describe("security regressions", () => {
       clientClaimedAt: new Date(),
       freelancerUtr: "freelancer-secret",
       freelancerClaimedAt: new Date(),
-      mismatchCount: 0,
+      mismatchCount: 0, mismatchCountAtReopen: 0,
       status: "awaiting_client",
       verifiedAt: null,
     };

@@ -1,17 +1,21 @@
 import type { Metadata } from "next";
-import { Outfit, Onest } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
 import { SessionProvider } from "@/components/providers/session-provider";
 
-const sans = Outfit({
+const sans = localFont({
+  src: "./fonts/Outfit-Variable.ttf",
+  weight: "100 900",
+  display: "swap",
   variable: "--font-sans",
-  subsets: ["latin"],
 });
 
-const display = Onest({
+const display = localFont({
+  src: "./fonts/Onest-Variable.ttf",
+  weight: "100 900",
+  display: "swap",
   variable: "--font-display",
-  subsets: ["latin"],
 });
 
 export const metadata: Metadata = {

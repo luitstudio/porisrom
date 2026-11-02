@@ -1,6 +1,6 @@
-# Porishrom — Data Model
+# Porisrom — Data Model
 
-Companion to [PRD.md](./PRD.md). Describes entities and relationships owned by `@porishrom/database` (Postgres via Prisma). This is a design document — the actual `packages/database/prisma/schema.prisma` gets built out incrementally per the roadmap, not all at once.
+Companion to [PRD.md](./PRD.md). Describes entities and relationships owned by `@porisrom/database` (Postgres via Prisma). This is a design document — the actual `packages/database/prisma/schema.prisma` gets built out incrementally per the roadmap, not all at once.
 
 Prisma-syntax blocks below are illustrative of field shape/types, not final — types, indexes, and cascade rules will be refined during implementation.
 

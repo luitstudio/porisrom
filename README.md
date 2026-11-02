@@ -1,7 +1,10 @@
-# Porishrom
+# Porisrom
 
-Porishrom is a pnpm workspace marketplace monorepo with a Next.js marketplace,
+Porisrom is a pnpm workspace marketplace monorepo with a Next.js marketplace,
 a Next.js admin panel, and a NestJS API backed by PostgreSQL.
+
+New maintainers: start with the [developer handover](docs/PORISROM-DEVELOPER-HANDOVER.md)
+and [latest staging acceptance report](docs/PORISROM-STAGING-ACCEPTANCE-REPORT.md).
 
 ## Toolchain
 
@@ -32,15 +35,15 @@ workflow is:
 ```sh
 pnpm install
 docker compose up -d postgres
-pnpm --filter @porishrom/database generate
-pnpm --filter @porishrom/database migrate:dev
-pnpm --filter @porishrom/database build
-pnpm --filter @porishrom/database seed
+pnpm --filter @porisrom/database generate
+pnpm --filter @porisrom/database migrate:dev
+pnpm --filter @porisrom/database build
+pnpm --filter @porisrom/database seed
 pnpm dev
 ```
 
 For a local admin account, set `ADMIN_EMAIL` and `ADMIN_PASSWORD` in the
-backend environment before running `pnpm --filter @porishrom/backend seed:admin`.
+backend environment before running `pnpm --filter @porisrom/backend seed:admin`.
 The seed fails if either value is missing and never provides a default password.
 
 ## Production runbook
@@ -84,7 +87,7 @@ missing production backend URL rather than falling back to localhost.
 Run the production migration command from the repository root:
 
 ```sh
-pnpm --filter @porishrom/database migrate:deploy
+pnpm --filter @porisrom/database migrate:deploy
 ```
 
 Never run any of the following against production:
@@ -105,7 +108,7 @@ Use this high-level order:
 
 1. Configure production secrets, API URLs, and HTTPS origins.
 2. Provision PostgreSQL.
-3. Run `pnpm --filter @porishrom/database migrate:deploy`.
+3. Run `pnpm --filter @porisrom/database migrate:deploy`.
 4. Deploy the backend.
 5. Verify `GET /health` returns liveness and `GET /health/ready` verifies
    PostgreSQL readiness.
@@ -135,6 +138,6 @@ pnpm dev
 pnpm build
 pnpm lint
 pnpm type-check
-pnpm --filter @porishrom/backend test
-pnpm --filter @porishrom/database migrate:deploy
+pnpm --filter @porisrom/backend test
+pnpm --filter @porisrom/database migrate:deploy
 ```

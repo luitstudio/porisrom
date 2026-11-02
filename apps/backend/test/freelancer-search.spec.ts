@@ -53,7 +53,20 @@ describe("freelancer discovery search", () => {
     await service.searchFreelancers({ keyword: "writer" });
 
     expect(findMany.mock.calls[0]?.[0].where.verificationStatus).toBe("approved");
+    expect(findMany.mock.calls[0]?.[0].where.user).toEqual({ role: "freelancer", status: "active" });
     expect(count.mock.calls[0]?.[0].where.verificationStatus).toBe("approved");
+    expect(count.mock.calls[0]?.[0].where.user).toEqual({ role: "freelancer", status: "active" });
+  });
+
+  it("normalizes punctuation and whitespace into searchable terms", async () => {
+    const { service, findMany } = createSearchService();
+    await service.searchFreelancers({ keyword: "  video-editor   voice_over  " });
+
+    const where = findMany.mock.calls[0]?.[0].where;
+    expect(where.OR).toBeUndefined();
+    expect(where.AND).toHaveLength(4);
+    expect(where.AND.map((branch: { OR: Array<{ user: { name: { contains: string } } }> }) => branch.OR[0].user.name.contains))
+      .toEqual(["video", "editor", "voice", "over"]);
   });
 
   it("combines categoryId and keyword", async () => {
@@ -102,5 +115,16 @@ describe("freelancer discovery search", () => {
     expect(count.mock.calls[0]?.[0].where).toEqual(
       expect.objectContaining({ state: "Assam", district: "Kamrup Metropolitan" }),
     );
+  });
+
+  it("uses deterministic ranking after reputation ordering", async () => {
+    const { service, findMany } = createSearchService();
+    await service.searchFreelancers({});
+
+    expect(findMany.mock.calls[0]?.[0].orderBy).toEqual([
+      { ratingAvg: "desc" },
+      { ratingCount: "desc" },
+      { id: "asc" },
+    ]);
   });
 });

@@ -76,12 +76,14 @@ describe("admin profile moderation detail", () => {
 describe("existing approve and reject behavior", () => {
   it.each(["approved", "rejected"] as const)("sets freelancer status to %s", async (status) => {
     const update = vi.fn().mockResolvedValue({ verificationStatus: status });
-    const service = new AdminService({ db: {
-      user: { findUnique: vi.fn().mockResolvedValue({ id: "user-1", role: "freelancer" }) },
+    const tx = {
+      user: { findUnique: vi.fn(async ({ where }) => where.id === "moderator" ? { role: "admin", status: "active" } : { id: "user-1", role: "freelancer" }) },
       freelancerProfile: { findUnique: vi.fn().mockResolvedValue({ id: "fp-1" }), update },
-    } } as unknown as PrismaService);
+      adminActionLog: { create: vi.fn() },
+    };
+    const service = new AdminService({ db: { $transaction: (fn: (client: typeof tx) => unknown) => fn(tx) } } as unknown as PrismaService);
 
-    const result = status === "approved" ? await service.approveProfile("user-1") : await service.rejectProfile("user-1");
+    const result = status === "approved" ? await service.approveProfile("user-1", "moderator") : await service.rejectProfile("user-1", "moderator");
     expect(update).toHaveBeenCalledWith({ where: { userId: "user-1" }, data: { verificationStatus: status } });
     expect(result).toEqual({ verificationStatus: status });
   });

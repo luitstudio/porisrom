@@ -28,6 +28,10 @@ export function validateProductionAuthSecrets(config: Record<string, unknown>) {
     }
   }
 
+  if (String(config.JWT_ACCESS_SECRET).trim() === String(config.JWT_REFRESH_SECRET).trim()) {
+    throw new Error("JWT_ACCESS_SECRET and JWT_REFRESH_SECRET must be distinct in production");
+  }
+
   const origins = frontendOrigins(config);
   if (origins === "http://localhost:3000") {
     throw new Error("FRONTEND_ORIGIN must be configured in production");
@@ -41,10 +45,10 @@ export function validateProductionAuthSecrets(config: Record<string, unknown>) {
       throw new Error("FRONTEND_ORIGIN must contain valid HTTPS origins in production");
     }
 
-    if (LOCAL_ORIGIN_HOSTS.has(url.hostname)) {
+    if (LOCAL_ORIGIN_HOSTS.has(url.hostname) || url.hostname === "[::1]" || /^127\./.test(url.hostname) || url.hostname.endsWith(".localhost")) {
       throw new Error("FRONTEND_ORIGIN must not contain localhost origins in production");
     }
-    if (url.protocol !== "https:") {
+    if (url.protocol !== "https:" || url.hostname.includes("*") || url.username || url.password || url.pathname !== "/" || url.search || url.hash) {
       throw new Error("FRONTEND_ORIGIN must contain HTTPS origins in production");
     }
   }

@@ -1,5 +1,6 @@
 import { backendFetch } from "@/lib/backend-api";
 import { requireSession } from "@/lib/session";
+import Link from "next/link";
 
 type PaymentRow = {
   id: string;
@@ -62,7 +63,7 @@ export default async function PaymentsPage() {
                     background: flagged ? "color-mix(in srgb, var(--danger) 12%, transparent)" : undefined,
                   }}
                 >
-                  <td className="p-3">{p.workAssignment.title}</td>
+                  <td className="p-3"><Link className="underline" href={`/payments/${p.id}`}>{p.workAssignment.title}</Link></td>
                   <td className="p-3">
                     {p.workAssignment.conversation.connection.requester.name} ↔{" "}
                     {p.workAssignment.conversation.connection.receiver.name}

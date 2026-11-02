@@ -41,6 +41,11 @@ export async function getMessagesAction(conversationId: string): Promise<Message
   return backendFetch<MessageItem[]>(`/conversations/${conversationId}/messages`, { accessToken });
 }
 
+export async function getConversationAccessAction(conversationId: string): Promise<{ readOnly: boolean }> {
+  const accessToken = await requireAccessToken();
+  return backendFetch(`/conversations/${conversationId}/access`, { accessToken });
+}
+
 export async function sendMessageAction(
   conversationId: string,
   body: string

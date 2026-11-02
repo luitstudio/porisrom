@@ -3,8 +3,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Porishrom Admin",
-  description: "Internal admin console for Porishrom",
+  title: "Porisrom Admin",
+  description: "Internal admin console for Porisrom",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

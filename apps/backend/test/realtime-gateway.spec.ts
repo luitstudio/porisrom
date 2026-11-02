@@ -9,7 +9,8 @@ function harness(user: TestUser | null, verify = vi.fn()) {
   const jwtService = { verifyAsync: verify };
   const configService = { getOrThrow: vi.fn(() => "test-access-secret") };
   const prisma = {
-    db: { user: { findUnique: vi.fn(() => Promise.resolve(user)) } },
+    db: { user: { findUnique: vi.fn(() => Promise.resolve(user)) },
+      authSession: { findUnique: vi.fn(async () => ({ userId: user?.id, expiresAt: new Date(Date.now() + 60000), revokedAt: null })) } },
   } as unknown as PrismaService;
   const gateway = new RealtimeGateway(jwtService as never, configService as never, prisma);
   let middleware: ((socket: unknown, next: (error?: Error) => void) => void) | undefined;
@@ -19,6 +20,8 @@ function harness(user: TestUser | null, verify = vi.fn()) {
     handshake: { auth: {}, headers: {} },
     data: {},
     join: vi.fn(),
+    once: vi.fn(),
+    use: vi.fn(),
   };
   return { configService, gateway, jwtService, middleware: middleware!, prisma, socket };
 }
@@ -32,7 +35,8 @@ async function runMiddleware(
 
 describe("RealtimeGateway authentication", () => {
   it("accepts a verified active JWT and joins only the derived user room", async () => {
-    const verify = vi.fn(() => Promise.resolve({ sub: "user-1", role: "admin" }));
+    const exp = Math.floor(Date.now() / 1000) + 30;
+    const verify = vi.fn(() => Promise.resolve({ sub: "user-1", sid: "session-1", exp, role: "admin" }));
     const { gateway, middleware, socket, jwtService, prisma } = harness(
       { id: "user-1", role: "freelancer", status: "active" },
       verify,
@@ -45,7 +49,7 @@ describe("RealtimeGateway authentication", () => {
       where: { id: "user-1" },
       select: { id: true, role: true, status: true },
     });
-    expect(socket.data).toEqual({ user: { userId: "user-1", role: "freelancer" } });
+    expect(socket.data).toEqual({ user: { userId: "user-1", role: "freelancer", sessionId: "session-1", expiresAt: exp * 1000 } });
     gateway.handleConnection(socket as never);
     expect(socket.join).toHaveBeenCalledWith("user:user-1");
   });
@@ -61,7 +65,7 @@ describe("RealtimeGateway authentication", () => {
   it.each(["blocked", "deleted"] as const)("rejects a %s user after JWT verification", async (status) => {
     const { middleware, socket } = harness(
       { id: "user-1", role: "freelancer", status },
-      vi.fn(() => Promise.resolve({ sub: "user-1", role: "freelancer" })),
+      vi.fn(() => Promise.resolve({ sub: "user-1", sid: "session-1", role: "freelancer" })),
     );
     socket.handshake.auth = { token: "valid-token" };
 
@@ -83,13 +87,15 @@ describe("RealtimeGateway authentication", () => {
 });
 
 describe("RealtimeGateway notification delivery", () => {
-  it("emits notification.created only to the persisted recipient room", () => {
+  it("emits notification.created only to a valid session of the persisted recipient", async () => {
     const emit = vi.fn();
-    const to = vi.fn(() => ({ emit }));
-    const gateway = new RealtimeGateway({} as never, {} as never, {} as never);
-    gateway.afterInit({ use: vi.fn(), to } as never);
+    const socket = { data: { user: { userId: "recipient-1", sessionId: "session-1", expiresAt: Date.now() + 60000 } }, emit };
+    const to = vi.fn(() => ({ fetchSockets: async () => [socket] }));
+    const prisma = { db: { user: { findUnique: async () => ({ id: "recipient-1", status: "active" }) }, authSession: { findUnique: async () => ({ userId: "recipient-1", expiresAt: new Date(Date.now() + 60000), revokedAt: null }) } } };
+    const gateway = new RealtimeGateway({} as never, {} as never, prisma as never);
+    gateway.afterInit({ use: vi.fn(), in: to } as never);
 
-    gateway.emitNotificationCreated({
+    await gateway.emitNotificationCreated({
       id: "notification-1",
       userId: "recipient-1",
       type: "message_received",

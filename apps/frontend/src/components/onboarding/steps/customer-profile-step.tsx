@@ -11,6 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import type { CustomerProfileData, TaxonomyItem } from "@/lib/onboarding-types";
 
+const MAX_DOCUMENT_BYTES = 1024 * 1024;
+
 type CustomerProfileStepProps = {
   value: CustomerProfileData;
   onChange: (value: CustomerProfileData) => void;
@@ -49,8 +51,12 @@ export function CustomerProfileStep({
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-      <BentoCard title="Business avatar" icon={Building2} rowSpan="2">
-        <AvatarSelector label="Choose a business avatar" />
+      <BentoCard title="Business photo" icon={Building2} rowSpan="2">
+        <AvatarSelector
+          label="Logo or profile photo"
+          value={value.logoFile}
+          onPhotoChange={(logoFile) => patch({ logoFile })}
+        />
       </BentoCard>
 
       <BentoCard title="Company information" icon={FileText} span="2">
@@ -72,6 +78,10 @@ export function CustomerProfileStep({
         </div>
         <FileDropField
           accept=".pdf"
+          allowedKinds={["pdf"]}
+          fileLabel="Company certificate PDF"
+          hint="Company registration certificate, PDF only, max 1 MB."
+          maxSizeBytes={MAX_DOCUMENT_BYTES}
           onFilesChange={(files) => patch({ certificateFiles: files })}
         />
         <p className="text-xs text-muted-foreground">
@@ -79,6 +89,10 @@ export function CustomerProfileStep({
         </p>
         <FileDropField
           accept=".pdf"
+          allowedKinds={["pdf"]}
+          fileLabel="Aadhaar PDF"
+          hint="Aadhaar for individuals, PDF only, max 1 MB per file."
+          maxSizeBytes={MAX_DOCUMENT_BYTES}
           multiple
           onFilesChange={(files) => patch({ aadhaarFiles: files })}
         />

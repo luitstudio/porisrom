@@ -1,3 +1,4 @@
+import { activeMarketplaceFixture } from "./active-marketplace-fixture";
 import { describe, expect, it, vi } from "vitest";
 
 import { ConversationsService } from "../src/conversations/conversations.service";
@@ -20,7 +21,9 @@ describe("realtime chat delivery", () => {
     const emitted = vi.fn(() => Promise.resolve());
     const prisma = {
       db: {
+        userBlock: { findFirst: vi.fn().mockResolvedValue(null) },
         $transaction: vi.fn((callback) => callback({
+          ...activeMarketplaceFixture(),
           message: { create: persisted },
           notification: { create: vi.fn() },
         })),
@@ -42,16 +45,19 @@ describe("realtime chat delivery", () => {
 
   it("emits message.created only to the server-derived other participant", async () => {
     const emit = vi.fn();
-    const to = vi.fn(() => ({ emit }));
+    const to = vi.fn(() => ({ fetchSockets: async () => [{ emit, data: { user: { userId: "freelancer-1", sessionId: "session-1", expiresAt: Date.now() + 60000 } } }] }));
     const prisma = {
       db: {
+        userBlock: { findFirst: vi.fn().mockResolvedValue(null) },
+        user: { findUnique: async () => ({ id: "freelancer-1", status: "active" }) },
+        authSession: { findUnique: async () => ({ userId: "freelancer-1", expiresAt: new Date(Date.now() + 60000), revokedAt: null }) },
         conversation: {
           findUnique: vi.fn(() => Promise.resolve({ connection: { requesterId: "client-1", receiverId: "freelancer-1" } })),
         },
       },
     } as unknown as PrismaService;
     const gateway = new RealtimeGateway({} as never, {} as never, prisma);
-    gateway.afterInit({ use: vi.fn(), to } as never);
+    gateway.afterInit({ use: vi.fn(), in: to } as never);
 
     await gateway.emitMessageCreated(message);
     expect(to).toHaveBeenCalledWith("user:freelancer-1");
@@ -65,6 +71,7 @@ describe("realtime chat delivery", () => {
     const to = vi.fn();
     const prisma = {
       db: {
+        userBlock: { findFirst: vi.fn().mockResolvedValue(null) },
         conversation: {
           findUnique: vi.fn(() => Promise.resolve({ connection: { requesterId: "client-1", receiverId: "freelancer-1" } })),
         },

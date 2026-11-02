@@ -4,8 +4,9 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import type { ReviewDirection } from "@porishrom/database";
+import type { ReviewDirection } from "@porisrom/database";
 
+import { assertMarketplaceWritable } from "../marketplace-access";
 import { PrismaService } from "../prisma/prisma.service";
 import type { CreateReviewDto } from "./dto/create-review.dto";
 
@@ -36,6 +37,7 @@ export class ReviewsService {
       if (connection.requesterId !== userId && connection.receiverId !== userId) {
         throw new ForbiddenException("You are not a participant of this work assignment");
       }
+      await assertMarketplaceWritable(tx, connection);
       if (assignment.status !== "completed") {
         throw new ConflictException("You can only review a completed assignment");
       }
@@ -91,7 +93,7 @@ export class ReviewsService {
 
   async listForFreelancer(freelancerProfileId: string) {
     const profile = await this.prisma.db.freelancerProfile.findFirst({
-      where: { id: freelancerProfileId, verificationStatus: "approved" },
+      where: { id: freelancerProfileId, verificationStatus: "approved", user: { role: "freelancer", status: "active" } },
       select: { userId: true },
     });
     if (!profile) {
@@ -106,7 +108,7 @@ export class ReviewsService {
 
   async listForCompany(companyProfileId: string) {
     const profile = await this.prisma.db.companyProfile.findFirst({
-      where: { id: companyProfileId, verificationStatus: "approved" },
+      where: { id: companyProfileId, verificationStatus: "approved", user: { role: "client", status: "active" } },
       select: { userId: true },
     });
     if (!profile) {

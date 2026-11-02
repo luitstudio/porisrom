@@ -13,6 +13,7 @@ export function DirectMessageForm({ users }: { users: { id: string; name: string
     <form action={formAction} className="flex flex-col gap-3">
       <select
         name="userId"
+        aria-label="Direct message recipient"
         required
         disabled={isPending}
         defaultValue=""

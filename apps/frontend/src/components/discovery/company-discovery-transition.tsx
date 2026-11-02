@@ -57,8 +57,32 @@ export function CompanyDiscoveryTransition({ children }: { children: React.React
     }, SEARCH_DEBOUNCE_MS);
   }
 
+  function handleNavigation(event: React.MouseEvent<HTMLDivElement>) {
+    if (
+      event.defaultPrevented ||
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    ) {
+      return;
+    }
+
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const link = target.closest<HTMLAnchorElement>("a[data-company-discovery-navigation]");
+    const href = link?.getAttribute("href");
+    if (!href) return;
+
+    event.preventDefault();
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    requestId.current += 1;
+    startTransition(() => router.push(href));
+  }
+
   return (
-    <div onChange={handleChange} onSubmit={handleSubmit} aria-busy={pending}>
+    <div onChange={handleChange} onSubmit={handleSubmit} onClickCapture={handleNavigation} aria-busy={pending}>
       {pending && (
         <div
           role="status"

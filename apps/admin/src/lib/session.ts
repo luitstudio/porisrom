@@ -1,7 +1,8 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { backendFetch, BackendApiError } from "./backend-api";
+import { createRefreshCoordinator } from "./refresh-coordinator";
 
 const ACCESS_COOKIE = "admin_access_token";
 const REFRESH_COOKIE = "admin_refresh_token";
@@ -14,6 +15,7 @@ export type AdminUser = {
 };
 
 type AuthPayload = { user: AdminUser; accessToken: string; refreshToken: string };
+const coordinateRefresh = createRefreshCoordinator<AuthPayload>();
 
 export async function loginAdmin(email: string, password: string): Promise<void> {
   const data = await backendFetch<AuthPayload>("/auth/login", {
@@ -21,6 +23,7 @@ export async function loginAdmin(email: string, password: string): Promise<void>
     body: { email, password },
   });
   if (data.user.role !== "admin") {
+    await backendFetch("/auth/logout", { method: "POST", accessToken: data.accessToken, body: { refreshToken: data.refreshToken } });
     throw new BackendApiError(403, "This account does not have admin access");
   }
   await setAuthCookies(data.accessToken, data.refreshToken);
@@ -28,6 +31,12 @@ export async function loginAdmin(email: string, password: string): Promise<void>
 
 export async function logoutAdmin(): Promise<void> {
   const store = await cookies();
+  const accessToken = store.get(ACCESS_COOKIE)?.value;
+  const refreshToken = store.get(REFRESH_COOKIE)?.value;
+  if (accessToken || refreshToken) {
+    try { await backendFetch("/auth/logout", { method: "POST", accessToken, body: { refreshToken } }); }
+    catch { throw new Error("Logout could not revoke your session. Please retry; your session cookies were retained."); }
+  }
   store.delete(ACCESS_COOKIE);
   store.delete(REFRESH_COOKIE);
 }
@@ -51,31 +60,31 @@ async function setAuthCookies(accessToken: string, refreshToken: string) {
   });
 }
 
-async function tryRefresh(): Promise<string | null> {
+export async function refreshAdminSession(): Promise<void> {
   const store = await cookies();
   const refreshToken = store.get(REFRESH_COOKIE)?.value;
-  if (!refreshToken) return null;
-
-  try {
-    const data = await backendFetch<AuthPayload>("/auth/refresh", {
-      method: "POST",
-      body: { refreshToken },
-    });
-    await setAuthCookies(data.accessToken, data.refreshToken);
-    return data.accessToken;
-  } catch {
-    return null;
-  }
+  if (!refreshToken) throw new BackendApiError(401, "Missing refresh credentials");
+  const data = await coordinateRefresh(refreshToken, () => backendFetch<AuthPayload>("/auth/refresh", {
+    method: "POST",
+    body: { refreshToken },
+  }));
+  if (data.user.role !== "admin") throw new BackendApiError(403, "Admin access required");
+  await setAuthCookies(data.accessToken, data.refreshToken);
 }
 
-/** Returns a valid access token + the current admin user, refreshing once if the access token expired. Returns null if there's no valid session at all. */
+async function redirectToRefresh(): Promise<never> {
+  const path = (await headers()).get("x-porisrom-admin-path") ?? "/";
+  redirect(`/api/auth/refresh?returnTo=${encodeURIComponent(path)}`);
+}
+
+/** Reads the session; expired credentials redirect to a route that can persist cookies. */
 export async function getSession(): Promise<{ accessToken: string; user: AdminUser } | null> {
   const store = await cookies();
-  let accessToken = store.get(ACCESS_COOKIE)?.value;
+  const accessToken = store.get(ACCESS_COOKIE)?.value;
 
   if (!accessToken) {
-    accessToken = (await tryRefresh()) ?? undefined;
-    if (!accessToken) return null;
+    if (store.get(REFRESH_COOKIE)?.value) await redirectToRefresh();
+    return null;
   }
 
   try {
@@ -84,15 +93,7 @@ export async function getSession(): Promise<{ accessToken: string; user: AdminUs
     return { accessToken, user };
   } catch (err) {
     if (err instanceof BackendApiError && err.status === 401) {
-      const refreshed = await tryRefresh();
-      if (!refreshed) return null;
-      try {
-        const user = await backendFetch<AdminUser>("/auth/me", { accessToken: refreshed });
-        if (user.role !== "admin") return null;
-        return { accessToken: refreshed, user };
-      } catch {
-        return null;
-      }
+      if (store.get(REFRESH_COOKIE)?.value) await redirectToRefresh();
     }
     return null;
   }

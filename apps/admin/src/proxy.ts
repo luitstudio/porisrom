@@ -14,7 +14,9 @@ export default function proxy(request: NextRequest) {
   if (!hasSession && !isLoginPage) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
-  return NextResponse.next();
+  const headers = new Headers(request.headers);
+  headers.set("x-porisrom-admin-path", request.nextUrl.pathname + request.nextUrl.search);
+  return NextResponse.next({ request: { headers } });
 }
 
 export const config = {

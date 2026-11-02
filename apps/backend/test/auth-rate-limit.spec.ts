@@ -10,12 +10,13 @@ import type { PrismaService } from "../src/prisma/prisma.service";
 
 function context(path: string, body: object, ip = "127.0.0.1") {
   return {
-    switchToHttp: () => ({ getRequest: () => ({ route: { path }, body, cookies: {}, ip }) }),
+    switchToHttp: () => ({ getRequest: () => ({ route: { path }, path, body, cookies: {}, ip }) }),
   } as never;
 }
 
 function authService(db: object) {
   const jwt = {
+    decode: vi.fn(() => ({ exp: Math.floor(Date.now() / 1000) + 604800 })),
     sign: vi.fn().mockReturnValueOnce("access-token").mockReturnValueOnce("refresh-token"),
   };
   const config = { getOrThrow: vi.fn().mockReturnValue("secret"), get: vi.fn() };
@@ -55,6 +56,15 @@ describe("auth rate limiting", () => {
 
     expect(guard.canActivate(context("/login", { email: "second@example.com" }))).toBe(true);
   });
+
+  it.each(["/auth/login", "auth/login", "/api/auth/login"] as const)("normalizes mounted route path %s", (path) => {
+    const guard = new AuthRateLimitGuard();
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      expect(guard.canActivate(context(path, { email: "person@example.com" }))).toBe(true);
+    }
+
+    expect(() => guard.canActivate(context(path, { email: "person@example.com" }))).toThrow(HttpException);
+  });
 });
 
 describe("existing auth behavior", () => {
@@ -74,6 +84,7 @@ describe("existing auth behavior", () => {
         findUnique: vi.fn().mockResolvedValue(null),
         create: vi.fn().mockResolvedValue(created),
       },
+      authSession: { create: vi.fn() },
     });
 
     await expect(
@@ -88,6 +99,15 @@ describe("existing auth behavior", () => {
       accessToken: "access-token",
       refreshToken: "refresh-token",
     });
+    expect(service["prisma"].db.authSession.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          userId: "user-1",
+          tokenHash: expect.any(String),
+          expiresAt: expect.any(Date),
+        }),
+      }),
+    );
   });
 
   it("still logs in a valid active user", async () => {
@@ -105,6 +125,7 @@ describe("existing auth behavior", () => {
           profileCompleteness: 100,
         }),
       },
+      authSession: { create: vi.fn() },
     });
 
     await expect(
@@ -114,5 +135,14 @@ describe("existing auth behavior", () => {
       accessToken: "access-token",
       refreshToken: "refresh-token",
     });
+    expect(service["prisma"].db.authSession.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          userId: "user-1",
+          tokenHash: expect.any(String),
+          expiresAt: expect.any(Date),
+        }),
+      }),
+    );
   });
 });

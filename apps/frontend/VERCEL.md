@@ -7,7 +7,7 @@ Import the existing GitHub repository into Vercel with these settings:
 | Root Directory | `apps/frontend` |
 | Framework Preset | Next.js |
 | Install Command | `pnpm install --frozen-lockfile` |
-| Build Command | `pnpm --filter @porishrom/frontend build` |
+| Build Command | `pnpm --filter @porisrom/frontend build` |
 | Output Directory | Leave the Next.js default (`.next`) |
 | Node.js Version | `20.x` or newer supported runtime |
 | Include source files outside the Root Directory | Enabled |

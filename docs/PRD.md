@@ -1,8 +1,8 @@
-# Porishrom — Product Requirements Document
+# Porisrom — Product Requirements Document
 
 ## 1. What this is
 
-Porishrom is a professional networking and freelance marketplace connecting **Freelancers** with **Companies/Clients**. It is not a job board — it's a full workflow platform: discovery, connection, negotiation, structured work assignment, delivery, payment verification, and reputation.
+Porisrom is a professional networking and freelance marketplace connecting **Freelancers** with **Companies/Clients**. It is not a job board — it's a full workflow platform: discovery, connection, negotiation, structured work assignment, delivery, payment verification, and reputation.
 
 Three roles: **Freelancer**, **Company/Client**, **Admin**.
 
@@ -103,7 +103,7 @@ Not addressed in the original spec. Either side may propose cancelling an assign
 
 ## 6. Payment verification
 
-No payment gateway integration in MVP — payment happens outside the platform. Porishrom only verifies that **both sides claim the same reference number**:
+No payment gateway integration in MVP — payment happens outside the platform. Porisrom only verifies that **both sides claim the same reference number**:
 
 1. Company clicks **Paid**, enters the UTR/transaction ID they sent.
 2. Freelancer clicks **Received**, enters the UTR/transaction ID they received.

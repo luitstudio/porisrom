@@ -1,4 +1,4 @@
-# @porishrom/shared-types
+# @porisrom/shared-types
 
 Zod schemas and inferred TypeScript types for request/response contracts shared across `apps/backend`, `apps/frontend`, and `apps/admin`, so all three agree on shape without duplicating definitions.
 

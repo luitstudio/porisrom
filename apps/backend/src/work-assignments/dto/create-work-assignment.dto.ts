@@ -1,5 +1,7 @@
 import { Type } from "class-transformer";
-import { IsISO8601, IsNumber, IsOptional, IsString, Min, MinLength } from "class-validator";
+import { IsISO8601, IsNumber, IsOptional, IsString, Min, MinLength, Validate } from "class-validator";
+
+import { IsDueDateAtLeastTomorrowConstraint, MIN_WORK_ASSIGNMENT_BUDGET } from "./work-assignment-terms";
 
 export class CreateWorkAssignmentDto {
   @MinLength(1)
@@ -10,7 +12,7 @@ export class CreateWorkAssignmentDto {
 
   @Type(() => Number)
   @IsNumber()
-  @Min(0)
+  @Min(MIN_WORK_ASSIGNMENT_BUDGET, { message: "Budget must be at least ₹1" })
   budgetAmount!: number;
 
   @IsOptional()
@@ -19,5 +21,6 @@ export class CreateWorkAssignmentDto {
 
   @IsOptional()
   @IsISO8601()
+  @Validate(IsDueDateAtLeastTomorrowConstraint)
   dueDate?: string;
 }

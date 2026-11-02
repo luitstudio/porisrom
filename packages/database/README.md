@@ -1,4 +1,4 @@
-# @porishrom/database
+# @porisrom/database
 
 The single Prisma schema for the whole system, targeting Postgres. Only `apps/backend` imports this package — `apps/frontend` and `apps/admin` never touch the database directly, they call the backend's API.
 

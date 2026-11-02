@@ -15,6 +15,11 @@ export class ConversationsController {
     return this.conversationsService.listMine(user.userId);
   }
 
+  @Get(":id/access")
+  access(@CurrentUser() user: CurrentUserPayload, @Param("id") id: string) {
+    return this.conversationsService.access(user.userId, id);
+  }
+
   @Get(":id/messages")
   listMessages(@CurrentUser() user: CurrentUserPayload, @Param("id") id: string) {
     return this.conversationsService.listMessages(user.userId, id);

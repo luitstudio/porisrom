@@ -1,4 +1,4 @@
-# Porishrom local setup
+# Porisrom local setup
 
 This guide starts the local marketplace, admin panel, backend, and PostgreSQL.
 For production deployment requirements, see [README.md](README.md).
@@ -53,15 +53,15 @@ across restarts.
 ## 5. Generate Prisma and apply local migrations
 
 ```sh
-pnpm --filter @porishrom/database generate
-pnpm --filter @porishrom/database migrate:dev
-pnpm --filter @porishrom/database build
+pnpm --filter @porisrom/database generate
+pnpm --filter @porisrom/database migrate:dev
+pnpm --filter @porisrom/database build
 ```
 
 `migrate:dev` is for local development only. Production uses:
 
 ```sh
-pnpm --filter @porishrom/database migrate:deploy
+pnpm --filter @porisrom/database migrate:deploy
 ```
 
 Never run `prisma migrate reset`, `prisma migrate dev`, or delete a database or
@@ -72,7 +72,7 @@ volume against a production database.
 Categories and skills are required catalog data for onboarding and discovery:
 
 ```sh
-pnpm --filter @porishrom/database seed
+pnpm --filter @porisrom/database seed
 ```
 
 The normal seed does not require demo accounts. Optional launch/demo accounts
@@ -84,8 +84,8 @@ To seed a local admin account, first set `ADMIN_EMAIL` and `ADMIN_PASSWORD` in
 `apps/backend/.env`, then run:
 
 ```sh
-pnpm --filter @porishrom/backend build
-pnpm --filter @porishrom/backend seed:admin
+pnpm --filter @porisrom/backend build
+pnpm --filter @porisrom/backend seed:admin
 ```
 
 There is no default admin email or password. The seed fails closed if either
@@ -119,8 +119,8 @@ PostgreSQL readiness check.
   `docker compose up -d postgres` completed successfully.
 - Prisma migration errors: ensure `packages/database/.env` and
   `apps/backend/.env` reference the same local `DATABASE_URL` (port `5433`).
-- Cannot find `@porishrom/database`: rerun
-  `pnpm --filter @porishrom/database build`.
+- Cannot find `@porisrom/database`: rerun
+  `pnpm --filter @porisrom/database build`.
 - Stale Next.js behavior: stop local dev servers, remove the relevant `.next`
   directory, and restart `pnpm dev`.
 

@@ -44,10 +44,10 @@ describe("admin review moderation", () => {
 
   it("rejects an invalid review ID without deleting", async () => {
     const deleteReview = vi.fn();
-    const tx = { review: { findUnique: vi.fn().mockResolvedValue(null), delete: deleteReview } };
+    const tx = { user: { findUnique: vi.fn().mockResolvedValue({ role: "admin", status: "active" }) }, adminActionLog: { create: vi.fn() }, review: { findUnique: vi.fn().mockResolvedValue(null), delete: deleteReview } };
     const service = new AdminService({ db: { $transaction: (callback: (client: typeof tx) => unknown) => callback(tx) } } as unknown as PrismaService);
 
-    await expect(service.removeReview("missing")).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.removeReview("missing", "moderator")).rejects.toBeInstanceOf(NotFoundException);
     expect(deleteReview).not.toHaveBeenCalled();
   });
 
@@ -55,6 +55,7 @@ describe("admin review moderation", () => {
     const deleteReview = vi.fn().mockResolvedValue(review);
     const updateMany = vi.fn().mockResolvedValue({ count: 1 });
     const tx = {
+      user: { findUnique: vi.fn().mockResolvedValue({ role: "admin", status: "active" }) }, adminActionLog: { create: vi.fn() },
       review: {
         findUnique: vi.fn().mockResolvedValue({ id: review.id, targetId: review.targetId, direction: review.direction }),
         delete: deleteReview,
@@ -65,7 +66,7 @@ describe("admin review moderation", () => {
     const transaction = vi.fn((callback: (client: typeof tx) => unknown) => callback(tx));
     const service = new AdminService({ db: { $transaction: transaction } } as unknown as PrismaService);
 
-    await expect(service.removeReview(review.id)).resolves.toEqual({ id: review.id, removed: true });
+    await expect(service.removeReview(review.id, "moderator")).resolves.toEqual({ id: review.id, removed: true });
     expect(deleteReview).toHaveBeenCalledWith({ where: { id: review.id } });
     expect(updateMany).toHaveBeenCalledWith({ where: { userId: review.targetId }, data: { ratingAvg: 4, ratingCount: 2 } });
     expect(transaction).toHaveBeenCalledOnce();

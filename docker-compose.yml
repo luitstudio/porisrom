@@ -3,13 +3,13 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: porishrom
-      POSTGRES_PASSWORD: porishrom
-      POSTGRES_DB: porishrom
+      POSTGRES_USER: porisrom
+      POSTGRES_PASSWORD: porisrom
+      POSTGRES_DB: porisrom
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
-      - porishrom_postgres_data:/var/lib/postgresql/data
+      - porisrom_postgres_data:/var/lib/postgresql/data
 
 volumes:
-  porishrom_postgres_data:
+  porisrom_postgres_data:

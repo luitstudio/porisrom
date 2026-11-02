@@ -1,12 +1,14 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
   Optional,
 } from "@nestjs/common";
-import type { PaymentVerification } from "@porishrom/database";
+import type { PaymentVerification, Notification, Prisma } from "@porisrom/database";
 
+import { assertMarketplaceWritable } from "../marketplace-access";
 import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import type { ClaimPaymentDto } from "./dto/claim-payment.dto";
@@ -14,6 +16,7 @@ import type { CreateDeliverableDto } from "./dto/create-deliverable.dto";
 import type { CreateWorkAssignmentDto } from "./dto/create-work-assignment.dto";
 import type { RespondWorkAssignmentDto } from "./dto/respond-work-assignment.dto";
 import type { ReviseWorkAssignmentDto } from "./dto/revise-work-assignment.dto";
+import { isDueDateAtLeastTomorrow, MIN_WORK_ASSIGNMENT_BUDGET } from "./dto/work-assignment-terms";
 
 const FULL_INCLUDE = {
   events: { orderBy: { createdAt: "asc" as const } },
@@ -34,6 +37,7 @@ export class WorkAssignmentsService {
   ) {}
 
   async create(userId: string, conversationId: string, dto: CreateWorkAssignmentDto) {
+    this.assertValidTerms(dto);
     const conversation = await this.getConversationForParticipant(userId, conversationId);
 
     const user = await this.prisma.db.user.findUnique({ where: { id: userId } });
@@ -42,6 +46,7 @@ export class WorkAssignmentsService {
     }
 
     const result = await this.prisma.db.$transaction(async (tx) => {
+      await assertMarketplaceWritable(tx, conversation.connection);
       const created = await tx.workAssignment.create({
         data: {
           conversationId,
@@ -107,6 +112,8 @@ export class WorkAssignmentsService {
           : "modification_requested";
 
     const notification = await this.prisma.db.$transaction(async (tx) => {
+      await assertMarketplaceWritable(tx, assignment.conversation.connection);
+      await this.assertAssignmentSnapshot(tx, assignment);
       await tx.workAssignment.update({
         where: { id: assignment.id },
         data: { status: nextStatus },
@@ -154,6 +161,8 @@ export class WorkAssignmentsService {
 
     if (dto.action === "reject") {
       await this.prisma.db.$transaction(async (tx) => {
+        await assertMarketplaceWritable(tx, assignment.conversation.connection);
+        await this.assertAssignmentSnapshot(tx, assignment);
         await tx.workAssignment.update({
           where: { id: assignment.id },
           data: { status: "rejected" },
@@ -170,7 +179,11 @@ export class WorkAssignmentsService {
       return this.withDetails(userId, assignment.id);
     }
 
+    this.assertValidTerms(dto);
+
     await this.prisma.db.$transaction(async (tx) => {
+      await assertMarketplaceWritable(tx, assignment.conversation.connection);
+      await this.assertAssignmentSnapshot(tx, assignment);
       await tx.workAssignment.update({
         where: { id: assignment.id },
         data: {
@@ -197,12 +210,17 @@ export class WorkAssignmentsService {
   async cancel(userId: string, id: string, note?: string) {
     const assignment = await this.getOwnAssignment(userId, id);
 
+    if (assignment.status === "disputed") throw new ConflictException("Use administrative payment dispute resolution for this assignment");
+
     if (TERMINAL_STATUSES.includes(assignment.status)) {
       throw new ConflictException("This assignment has already reached a final state");
     }
 
     if (!assignment.cancelRequestedById) {
       await this.prisma.db.$transaction(async (tx) => {
+        await assertMarketplaceWritable(tx, assignment.conversation.connection);
+        await this.assertAssignmentSnapshot(tx, assignment);
+        if (!note || note.trim().length < 10) throw new BadRequestException("A cancellation reason of at least 10 characters is required");
         await tx.workAssignment.update({
           where: { id: assignment.id },
           data: { cancelRequestedById: userId },
@@ -216,6 +234,7 @@ export class WorkAssignmentsService {
           },
         });
       });
+      await this.emitFinancialUpdate(assignment.id);
       return this.withDetails(userId, assignment.id);
     }
 
@@ -226,6 +245,8 @@ export class WorkAssignmentsService {
     }
 
     await this.prisma.db.$transaction(async (tx) => {
+      await assertMarketplaceWritable(tx, assignment.conversation.connection);
+      await this.assertAssignmentSnapshot(tx, assignment);
       await tx.workAssignment.update({
         where: { id: assignment.id },
         data: { status: "cancelled" },
@@ -237,6 +258,23 @@ export class WorkAssignmentsService {
 
     await this.emitFinancialUpdate(assignment.id);
     return this.withDetails(userId, assignment.id);
+  }
+
+  async rejectCancellation(userId: string, id: string, reason: string) {
+    const assignment = await this.getOwnAssignment(userId, id);
+    await this.prisma.db.$transaction(async (tx) => {
+      await assertMarketplaceWritable(tx, assignment.conversation.connection);
+      await this.assertAssignmentSnapshot(tx, assignment);
+      if (assignment.status === "disputed" || !assignment.cancelRequestedById || assignment.cancelRequestedById === userId || TERMINAL_STATUSES.includes(assignment.status)) {
+        throw new ConflictException("Only the other participant can reject a pending cancellation");
+      }
+      await tx.workAssignment.update({ where: { id }, data: { cancelRequestedById: null } });
+      await tx.workAssignmentEvent.create({ data: { workAssignmentId: id, actorId: userId, action: "cancel_rejected", note: reason } });
+      await tx.notification.create({ data: { userId: assignment.cancelRequestedById, type: "cancellation_rejected",
+        message: "The cancellation request was declined. You can escalate it for administrative review." } });
+    });
+    await this.emitFinancialUpdate(id);
+    return this.withDetails(userId, id);
   }
 
   async submitDeliverable(userId: string, id: string, dto: CreateDeliverableDto) {
@@ -251,6 +289,8 @@ export class WorkAssignmentsService {
     }
 
     await this.prisma.db.$transaction(async (tx) => {
+      await assertMarketplaceWritable(tx, assignment.conversation.connection);
+      await this.assertAssignmentSnapshot(tx, assignment);
       await tx.deliverable.create({
         data: { workAssignmentId: id, type: dto.type, url: dto.url, note: dto.note },
       });
@@ -285,6 +325,8 @@ export class WorkAssignmentsService {
     }
 
     await this.prisma.db.$transaction(async (tx) => {
+      await assertMarketplaceWritable(tx, assignment.conversation.connection);
+      await this.assertAssignmentSnapshot(tx, assignment);
       await tx.workAssignment.update({
         where: { id: assignment.id },
         data: { status: "payment_pending" },
@@ -320,6 +362,8 @@ export class WorkAssignmentsService {
     }
 
     await this.prisma.db.$transaction(async (tx) => {
+      await assertMarketplaceWritable(tx, assignment.conversation.connection);
+      await this.assertAssignmentSnapshot(tx, assignment);
       await tx.workAssignment.update({
         where: { id: assignment.id },
         data: { status: "revision_requested" },
@@ -440,7 +484,14 @@ export class WorkAssignmentsService {
     utr: string,
     party: "client" | "freelancer",
   ) {
+    const notifications: Notification[] = [];
     const payment = await this.prisma.db.$transaction(async (tx) => {
+      const participantAssignment = await tx.workAssignment.findUnique({
+        where: { id: assignmentId },
+        select: { createdById: true, conversation: { select: { connection: { select: { requesterId: true, receiverId: true } } } } },
+      });
+      if (!participantAssignment) throw new NotFoundException("Work assignment not found");
+      await assertMarketplaceWritable(tx, participantAssignment.conversation.connection);
       await tx.$queryRaw`SELECT "id" FROM "PaymentVerification" WHERE "workAssignmentId" = ${assignmentId} FOR UPDATE`;
 
       const assignment = await tx.workAssignment.findUnique({
@@ -460,6 +511,24 @@ export class WorkAssignmentsService {
       }
 
       const claimedAt = new Date();
+      // A record created before claim history existed may still hold a reference.
+      // Retain both sides before any replacement or mismatch-round clearing.
+      const pair = participantAssignment.conversation.connection;
+      const freelancerId = pair.requesterId === participantAssignment.createdById ? pair.receiverId : pair.requesterId;
+      for (const previous of [
+        { userId: participantAssignment.createdById, party: "client" as const, reference: existing.clientUtr, at: existing.clientClaimedAt },
+        { userId: freelancerId, party: "freelancer" as const, reference: existing.freelancerUtr, at: existing.freelancerClaimedAt },
+      ]) {
+        if (previous.reference && !await tx.paymentClaim.findFirst({ where: {
+          paymentVerificationId: existing.id, userId: previous.userId, party: previous.party, reference: previous.reference,
+        } })) await tx.paymentClaim.create({ data: {
+          paymentVerificationId: existing.id, userId: previous.userId, party: previous.party, reference: previous.reference,
+          ...(previous.at ? { createdAt: previous.at } : {}),
+        } });
+      }
+      await tx.paymentClaim.create({ data: {
+        paymentVerificationId: existing.id, userId: actorId, party, reference: utr,
+      } });
       let updated = await tx.paymentVerification.update({
         where: { id: existing.id },
         data:
@@ -518,7 +587,15 @@ export class WorkAssignmentsService {
         data: { workAssignmentId: assignmentId, actorId, action: "payment_mismatch" },
       });
 
-      if (mismatchCount >= MISMATCH_THRESHOLD) {
+      const disputed = mismatchCount - updated.mismatchCountAtReopen >= MISMATCH_THRESHOLD;
+      for (const userId of [participantAssignment.conversation.connection.requesterId, participantAssignment.conversation.connection.receiverId]) {
+        notifications.push(await tx.notification.create({ data: {
+          userId, type: disputed ? "payment_disputed" : "payment_mismatch",
+          message: disputed ? "Repeated payment-reference mismatches require administrator review. Your assignment is disputed."
+            : "Payment references did not match. Check your reference and submit a new claim. No bank settlement was verified.",
+        } }));
+      }
+      if (disputed) {
         await tx.workAssignment.update({
           where: { id: assignmentId },
           data: { status: "disputed" },
@@ -531,8 +608,22 @@ export class WorkAssignmentsService {
       return updated;
     });
 
+    for (const notification of notifications) void this.realtimeGateway?.emitNotificationCreated(notification);
     await this.emitFinancialUpdate(assignmentId);
     return this.paymentResponse(payment, party);
+  }
+
+  private async assertAssignmentSnapshot(tx: Prisma.TransactionClient, snapshot: {
+    id: string; status: string; cancelRequestedById: string | null; updatedAt: Date;
+  }) {
+    await tx.$queryRaw`SELECT "id" FROM "WorkAssignment" WHERE "id" = ${snapshot.id} FOR UPDATE`;
+    const current = await tx.workAssignment.findUnique({ where: { id: snapshot.id },
+      select: { status: true, cancelRequestedById: true, updatedAt: true } });
+    if (!current || current.status !== snapshot.status ||
+        (current.cancelRequestedById ?? null) !== (snapshot.cancelRequestedById ?? null) ||
+        current.updatedAt.getTime() !== snapshot.updatedAt.getTime()) {
+      throw new ConflictException("This assignment changed. Reload before trying again.");
+    }
   }
 
   private assertPaymentOpen(status: string) {
@@ -626,5 +717,14 @@ export class WorkAssignmentsService {
       [connection.requesterId, connection.receiverId],
       assignmentId,
     );
+  }
+
+  private assertValidTerms(dto: { budgetAmount?: number; dueDate?: string }) {
+    if (dto.budgetAmount !== undefined && dto.budgetAmount < MIN_WORK_ASSIGNMENT_BUDGET) {
+      throw new BadRequestException("Budget must be at least ₹1");
+    }
+    if (dto.dueDate !== undefined && !isDueDateAtLeastTomorrow(dto.dueDate)) {
+      throw new BadRequestException("Due date must be at least tomorrow");
+    }
   }
 }

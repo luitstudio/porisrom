@@ -1,13 +1,16 @@
 "use client";
 
+import { CompanyDocumentUploadForm } from "./company-document-upload-form";
 import * as React from "react";
-import { Building2, Image, MapPin, Save, Tag } from "lucide-react";
+import { Building2, FileText, Image, MapPin, Save, Tag } from "lucide-react";
 
 import {
   updateCompanyProfileAction,
+  uploadCompanyLogoAction,
   type UpdateCompanyProfileInput,
 } from "@/app/dashboard/client/settings/actions";
 import type { CompanyOwnerProfile } from "@/app/dashboard/client/settings/page";
+import { AvatarSelector } from "@/components/onboarding/avatar-uploader";
 import { MultiSelectTags } from "@/components/onboarding/multi-select-tags";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +32,10 @@ type CompanyProfileFormProps = {
   categories: TaxonomyItem[];
 };
 
+function documentLabel(type: CompanyOwnerProfile["documents"][number]["type"]) {
+  return type === "company_certificate" ? "Company certificate" : "Aadhaar";
+}
+
 export function CompanyProfileForm({ profile, categories }: CompanyProfileFormProps) {
   const [form, setForm] = React.useState<UpdateCompanyProfileInput>({
     companyName: profile.companyName,
@@ -39,6 +46,8 @@ export function CompanyProfileForm({ profile, categories }: CompanyProfileFormPr
     categoryIds: profile.categories.map(({ category }) => category.id),
   });
   const [message, setMessage] = React.useState<{ kind: "success" | "error"; text: string } | null>(null);
+  const [logoFile, setLogoFile] = React.useState<File | null>(null);
+  const [savedLogoUrl, setSavedLogoUrl] = React.useState(profile.logoUrl);
   const [pending, startTransition] = React.useTransition();
 
   const categoryLabels = Object.fromEntries(categories.map(({ id, name }) => [id, name]));
@@ -53,11 +62,25 @@ export function CompanyProfileForm({ profile, categories }: CompanyProfileFormPr
     setMessage(null);
     startTransition(async () => {
       const result = await updateCompanyProfileAction(form);
-      setMessage(
-        result.success
-          ? { kind: "success", text: "Your company profile has been updated." }
-          : { kind: "error", text: result.error },
-      );
+      if (!result.success) {
+        setMessage({ kind: "error", text: result.error });
+        return;
+      }
+
+      if (logoFile) {
+        const logoForm = new FormData();
+        logoForm.set("photo", logoFile);
+        const logoResult = await uploadCompanyLogoAction(logoForm);
+        if (!logoResult.success) {
+          setMessage({ kind: "error", text: logoResult.error });
+          return;
+        }
+        setSavedLogoUrl(logoResult.logoUrl);
+        setForm((current) => ({ ...current, logoUrl: logoResult.logoUrl }));
+        setLogoFile(null);
+      }
+
+      setMessage({ kind: "success", text: "Your company profile has been updated." });
     });
   }
 
@@ -113,22 +136,49 @@ export function CompanyProfileForm({ profile, categories }: CompanyProfileFormPr
             onChange={(event) => patch({ address: event.target.value })}
           />
           <Select value={form.state} onValueChange={(state) => patch({ state: state ?? "" })}>
-            <SelectTrigger className="h-10 w-full border-[#27303A] bg-[#191D23] text-[#F5F7FA] md:h-11"><SelectValue placeholder="State" /></SelectTrigger>
+            <SelectTrigger aria-label="Company state" className="h-10 w-full border-[#27303A] bg-[#191D23] text-[#F5F7FA] md:h-11"><SelectValue placeholder="State" /></SelectTrigger>
             <SelectContent className="dark dashboard-theme client-theme border border-[#27303A] bg-[#191D23] text-[#F5F7FA]">
               {stateOptions.map((state) => <SelectItem key={state} value={state}>{state}</SelectItem>)}
             </SelectContent>
           </Select>
         </SettingsCard>
 
-        <SettingsCard title="Logo URL" icon={Image}>
+        <SettingsCard title="Business photo" icon={Image}>
+          <AvatarSelector
+            label="Logo or profile photo"
+            value={logoFile}
+            previewUrl={savedLogoUrl}
+            onPhotoChange={(file) => {
+              setLogoFile(file);
+              setMessage(null);
+            }}
+          />
           <Input
             className="h-10 border-[#27303A] bg-[#191D23] text-[#F5F7FA] placeholder:text-[#737D89] focus-visible:ring-[#36BDF6] md:h-11"
             type="url"
             placeholder="https://example.com/logo.png"
             value={form.logoUrl}
-            onChange={(event) => patch({ logoUrl: event.target.value })}
+            onChange={(event) => {
+              patch({ logoUrl: event.target.value });
+              setSavedLogoUrl(event.target.value || null);
+            }}
           />
-          <p className="text-xs text-muted-foreground">File uploads are not available yet.</p>
+        </SettingsCard>
+
+        <SettingsCard title="Submitted documents" icon={FileText}>
+          {profile.documents.length ? (
+            <ul className="space-y-2">
+              {profile.documents.map((document) => (
+                <li key={document.id} className="rounded-lg border border-[#27303A] bg-[#191D23] px-3 py-2">
+                  <p className="text-sm font-medium text-[#F5F7FA]">{documentLabel(document.type)}</p>
+                  <p className="mt-1 text-xs capitalize text-[#A7B0BC]">{document.uploadStatus}</p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-[#A7B0BC]">No company documents submitted.</p>
+          )}
+          <CompanyDocumentUploadForm />
         </SettingsCard>
       </div>
 

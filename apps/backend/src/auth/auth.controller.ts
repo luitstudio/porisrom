@@ -54,7 +54,7 @@ export class AuthController {
     // Browser clients send the refresh token via httpOnly cookie; server-to-server
     // callers (e.g. the Next.js frontend acting as a BFF) have no backend cookies,
     // so they pass it explicitly in the body instead.
-    const refreshToken = dto.refreshToken ?? req.cookies?.[REFRESH_COOKIE];
+    const refreshToken = dto?.refreshToken ?? req.cookies?.[REFRESH_COOKIE];
     if (!refreshToken) {
       throw new UnauthorizedException("Missing refresh token");
     }
@@ -65,8 +65,14 @@ export class AuthController {
 
   @Post("logout")
   @HttpCode(200)
-  @UseGuards(JwtAuthGuard)
-  logout(@Res({ passthrough: true }) res: Response) {
+  @UseGuards(AuthRateLimitGuard)
+  async logout(
+    @Body() dto: RefreshDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const accessToken = req.headers.authorization?.match(/^Bearer\s+(.+)$/i)?.[1] ?? req.cookies?.[ACCESS_COOKIE];
+    await this.authService.logoutUsingTokens(accessToken, dto?.refreshToken ?? req.cookies?.[REFRESH_COOKIE]);
     res.clearCookie(ACCESS_COOKIE);
     res.clearCookie(REFRESH_COOKIE);
     return { success: true };

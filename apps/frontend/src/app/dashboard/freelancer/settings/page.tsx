@@ -11,6 +11,7 @@ export const metadata: Metadata = { title: "Profile settings — Porisrom" };
 export type FreelancerOwnerProfile = {
   id: string;
   bio: string | null;
+  profilePhotoUrl: string | null;
   address: string | null;
   state: string | null;
   district: string | null;

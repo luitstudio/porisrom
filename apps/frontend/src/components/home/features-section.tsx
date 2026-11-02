@@ -13,12 +13,12 @@ const editorialCard =
 
 export function FeaturesSection() {
   return (
-    <section className="bg-[#141512] py-6 sm:py-8 lg:py-12" aria-labelledby="porishrom-story-title">
+    <section className="bg-[#141512] py-6 sm:py-8 lg:py-12" aria-labelledby="porisrom-story-title">
       <div className="mx-auto max-w-[1440px] px-3 sm:px-5 lg:px-7">
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-12 lg:gap-4">
           <article className={`${editorialCard} min-h-[330px] bg-[#f7f3e9] p-6 text-[#141512] sm:min-h-[390px] sm:p-8 lg:col-span-8 lg:min-h-[420px] lg:p-10`}>
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#e63228] sm:text-xs">Porishrom marketplace</p>
-            <h2 id="porishrom-story-title" className="relative z-10 mt-7 max-w-[8ch] font-display text-5xl font-semibold leading-[0.83] tracking-[-0.065em] sm:text-7xl lg:text-[6.8rem]">
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#e63228] sm:text-xs">Porisrom marketplace</p>
+            <h2 id="porisrom-story-title" className="relative z-10 mt-7 max-w-[8ch] font-display text-5xl font-semibold leading-[0.83] tracking-[-0.065em] sm:text-7xl lg:text-[6.8rem]">
               Good work.<br />Right people.
             </h2>
             <p className="relative z-10 mt-7 max-w-[30rem] text-sm leading-6 text-[#3d3a32] sm:text-base sm:leading-7">
@@ -27,7 +27,7 @@ export function FeaturesSection() {
             <Link href="/freelancers" className="relative z-10 mt-7 inline-flex min-h-11 items-center gap-2 rounded-full bg-[#141512] px-4 text-sm font-semibold text-[#f7f3e9] transition-transform hover:translate-x-1 focus-visible:ring-3 focus-visible:ring-[#e63228] focus-visible:outline-none motion-reduce:transform-none">
               Find professionals <ArrowUpRight className="size-4" aria-hidden="true" />
             </Link>
-            <Image src="/illustrations/porishrom-editorial/marketplace-people-transparent.png" alt="Hand-drawn Porishrom freelancers and a client working together" width={960} height={960} sizes="(min-width: 1024px) 42vw, 70vw" className="pointer-events-none absolute -bottom-8 -right-14 h-auto w-[58%] max-w-[440px] transition-transform duration-300 group-hover:-translate-y-2 group-hover:rotate-1 motion-reduce:transform-none sm:-right-8 sm:w-[52%]" />
+            <Image src="/illustrations/porisrom-editorial/marketplace-people-transparent.png" alt="Hand-drawn Porisrom freelancers and a client working together" width={960} height={960} sizes="(min-width: 1024px) 42vw, 70vw" className="pointer-events-none absolute -bottom-8 -right-14 h-auto w-[58%] max-w-[440px] transition-transform duration-300 group-hover:-translate-y-2 group-hover:rotate-1 motion-reduce:transform-none sm:-right-8 sm:w-[52%]" />
             <span className="absolute bottom-7 left-[49%] hidden size-3 rounded-full bg-[#9be65b] lg:block" aria-hidden="true" />
           </article>
 
@@ -40,7 +40,7 @@ export function FeaturesSection() {
             <div className="absolute bottom-6 left-6 flex -space-x-3 sm:bottom-8 sm:left-8">
               {["M", "R", "S"].map((initial, index) => <span key={initial} className={`flex size-13 items-center justify-center rounded-full border-4 border-[#075a50] text-sm font-bold text-[#141512] ${index === 0 ? "bg-[#f7f3e9]" : index === 1 ? "bg-[#9be65b]" : "bg-[#e63228] text-[#f7f3e9]"}`}>{initial}</span>)}
             </div>
-            <Image src="/illustrations/porishrom-editorial/collaboration-chat.png" alt="Hand-drawn people exchanging a project brief" width={900} height={900} sizes="(min-width: 1024px) 26vw, 65vw" className="pointer-events-none absolute -bottom-10 -right-12 h-auto w-[73%] max-w-[330px] transition-transform duration-300 group-hover:-translate-y-2 group-hover:translate-x-1 motion-reduce:transform-none" />
+            <Image src="/illustrations/porisrom-editorial/collaboration-chat.png" alt="Hand-drawn people exchanging a project brief" width={900} height={900} sizes="(min-width: 1024px) 26vw, 65vw" className="pointer-events-none absolute -bottom-10 -right-12 h-auto w-[73%] max-w-[330px] transition-transform duration-300 group-hover:-translate-y-2 group-hover:translate-x-1 motion-reduce:transform-none" />
           </article>
 
           <article className={`${editorialCard} min-h-[320px] bg-[#e63228] p-5 text-[#f7f3e9] sm:p-7 lg:col-span-4 lg:min-h-[420px]`}>

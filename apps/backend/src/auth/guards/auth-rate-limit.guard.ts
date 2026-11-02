@@ -18,6 +18,7 @@ type RateLimitRule = {
 type AttemptWindow = { count: number; resetAt: number };
 
 const RULES: Record<string, RateLimitRule> = {
+  logout: { limit: 30, windowMs: 5 * 60 * 1000, key: request => request.ip || "unknown" },
   signup: { limit: 5, windowMs: 15 * 60 * 1000, key: accountKey },
   login: { limit: 10, windowMs: 15 * 60 * 1000, key: accountKey },
   refresh: { limit: 30, windowMs: 5 * 60 * 1000, key: refreshKey },
@@ -62,8 +63,13 @@ export class AuthRateLimitGuard implements CanActivate {
 }
 
 function routeAction(request: Request): string {
-  const path = request.route?.path;
-  return typeof path === "string" ? path.replace(/^\//, "") : "";
+  const path = request.route?.path ?? request.path;
+  if (typeof path !== "string") return "";
+  return path
+    .replace(/^\/+/, "")
+    .split("/")
+    .filter(Boolean)
+    .at(-1) ?? "";
 }
 
 function accountKey(request: Request): string {

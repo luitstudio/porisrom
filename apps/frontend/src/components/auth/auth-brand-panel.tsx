@@ -8,11 +8,11 @@ import { useOptionalSignupRole } from "@/components/auth/signup-role-context";
 const SIGNUP_BANNERS = {
   freelancer: {
     src: "/images/auth/signup-freelancer.png",
-    alt: "Freelancer earning through projects on Porishrom",
+    alt: "Freelancer earning through projects on Porisrom",
   },
   client: {
     src: "/images/auth/signup-client.png",
-    alt: "Client discovering skilled professionals on Porishrom",
+    alt: "Client discovering skilled professionals on Porisrom",
   },
 } as const;
 
@@ -35,7 +35,7 @@ export function AuthBrandPanel() {
       ) : (
         <Image
           src={authIllustration}
-          alt="Porishrom marketplace authentication artwork"
+          alt="Porisrom marketplace authentication artwork"
           fill
           priority
           placeholder="blur"

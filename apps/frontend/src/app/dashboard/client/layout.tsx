@@ -29,6 +29,7 @@ export default async function ClientDashboardLayout({
           <Link href="/" aria-label="Porisrom home" className="inline-flex min-h-11 min-w-0 shrink items-center">
             <BrandLogo priority className="h-6 max-w-28 sm:h-7 sm:max-w-40" />
           </Link>
+          <Link href="/safety" className="px-2 text-xs sm:text-sm">Safety &amp; support</Link>
           <div className="hidden items-center gap-3 sm:flex">
             <Link
               href="/dashboard/client/settings"

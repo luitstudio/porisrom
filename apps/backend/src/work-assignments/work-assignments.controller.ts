@@ -1,3 +1,4 @@
+import { SafetyReasonDto } from "../safety/safety.dto";
 import { Body, Controller, Get, Param, Patch, Post, UseGuards } from "@nestjs/common";
 
 import { CurrentUser, type CurrentUserPayload } from "../auth/decorators/current-user.decorator";
@@ -63,6 +64,11 @@ export class WorkAssignmentsController {
     @Body() dto: CancelWorkAssignmentDto,
   ) {
     return this.workAssignmentsService.cancel(user.userId, id, dto.note);
+  }
+
+  @Patch("work-assignments/:id/cancellation/reject")
+  rejectCancellation(@CurrentUser() user: CurrentUserPayload, @Param("id") id: string, @Body() dto: SafetyReasonDto) {
+    return this.workAssignmentsService.rejectCancellation(user.userId, id, dto.reason);
   }
 
   @Post("work-assignments/:id/deliverables")

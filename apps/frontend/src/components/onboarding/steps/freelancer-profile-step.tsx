@@ -21,14 +21,16 @@ import {
   LANGUAGES,
 } from "@/lib/onboarding-data";
 import { ASSAM_DISTRICTS } from "@/lib/assam-districts";
-import type { FreelancerProfileData, TaxonomyItem } from "@/lib/onboarding-types";
+import type { FreelancerProfileData, TaxonomyItem, IdentityReviewStatus } from "@/lib/onboarding-types";
+
+const MAX_IDENTITY_DOCUMENT_BYTES = 1024 * 1024;
 
 type FreelancerProfileStepProps = {
   value: FreelancerProfileData;
   onChange: (value: FreelancerProfileData) => void;
   onValidityChange: (valid: boolean) => void;
   categories: TaxonomyItem[];
-  identityDocumentStatus: "not_submitted" | "pending";
+  identityDocumentStatus: IdentityReviewStatus;
 };
 
 export function FreelancerProfileStep({
@@ -61,8 +63,11 @@ export function FreelancerProfileStep({
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-      <BentoCard title="Choose your avatar" icon={Camera} rowSpan="2">
-        <AvatarSelector />
+      <BentoCard title="Profile photo" icon={Camera} rowSpan="2">
+        <AvatarSelector
+          value={value.profilePhotoFile}
+          onPhotoChange={(profilePhotoFile) => patch({ profilePhotoFile })}
+        />
       </BentoCard>
 
       <BentoCard title="Personal information" icon={User} span="2">
@@ -87,7 +92,7 @@ export function FreelancerProfileStep({
             value={value.language}
             onValueChange={(v) => patch({ language: v ?? "" })}
           >
-            <SelectTrigger className="min-h-11 w-full">
+            <SelectTrigger aria-label="Primary language" className="min-h-11 w-full">
               <SelectValue placeholder="Primary language" />
             </SelectTrigger>
             <SelectContent>
@@ -101,17 +106,21 @@ export function FreelancerProfileStep({
         </div>
         <FileDropField
           accept=".pdf"
+          allowedKinds={["pdf"]}
+          fileLabel="Aadhaar PDF"
+          hint="Upload your Aadhaar, both sides in one PDF, max 1 MB."
+          maxSizeBytes={MAX_IDENTITY_DOCUMENT_BYTES}
           onFilesChange={(files) => patch({ aadhaarFiles: files.slice(0, 1) })}
         />
         <p className="text-xs text-muted-foreground">
           Upload your Aadhaar — both sides, PDF format, max 1MB
         </p>
         <p className="text-xs leading-5 text-muted-foreground">
-          Identity Document Review — your document is reviewed manually by Porishrom for identity verification.
+          Identity Document Review — your document is reviewed manually by Porisrom for identity verification.
         </p>
         <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground" aria-live="polite">
           {identityDocumentStatus === "pending" ? <Clock3 className="size-3.5 text-amber-600" /> : <CircleCheck className="size-3.5" />}
-          {identityDocumentStatus === "pending" ? "Pending review" : "Not submitted"}
+          {({ not_submitted: "Not submitted", pending: "Pending review", approved: "Approved", rejected: "Rejected ? choose a replacement PDF" })[identityDocumentStatus]}
         </p>
       </BentoCard>
 
@@ -128,7 +137,7 @@ export function FreelancerProfileStep({
             value={value.district}
             onValueChange={(v) => patch({ district: v ?? "" })}
           >
-            <SelectTrigger className="min-h-11 w-full">
+            <SelectTrigger aria-label="Assam district" className="min-h-11 w-full">
               <SelectValue placeholder="Assam district" />
             </SelectTrigger>
             <SelectContent>
@@ -164,7 +173,7 @@ export function FreelancerProfileStep({
           value={value.experience}
           onValueChange={(v) => patch({ experience: v ?? "" })}
         >
-          <SelectTrigger className="min-h-11 w-full">
+          <SelectTrigger aria-label="Total experience" className="min-h-11 w-full">
             <SelectValue placeholder="Total experience" />
           </SelectTrigger>
           <SelectContent>

@@ -18,6 +18,7 @@ function connectionHarness() {
     receiver: { id: "freelancer-1", name: "Freelancer", role: "freelancer", status: "active" },
   };
   const tx = {
+    userBlock: { findFirst: vi.fn().mockResolvedValue(null) },
     $queryRaw: vi.fn().mockResolvedValue([{ id: connection.id }]),
     connection: {
       findUnique: vi.fn(async () => ({ ...connection, status: state.status })),

@@ -1,8 +1,8 @@
 {
-  "name": "@porishrom/database",
+  "name": "@porisrom/database",
   "version": "0.1.0",
   "private": true,
-  "description": "Canonical Prisma schema and client for Porishrom — Postgres. Consumed only by @porishrom/backend.",
+  "description": "Canonical Prisma schema and client for Porisrom \u00e2\u20ac\u201d Postgres. Consumed only by @porisrom/backend.",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
@@ -24,5 +24,8 @@
     "dotenv": "^17.4.2",
     "prisma": "^7.8.0",
     "typescript": "^5"
-  }
+  },
+  "files": [
+    "dist"
+  ]
 }

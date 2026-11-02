@@ -1,4 +1,4 @@
-# Porishrom — Implementation Roadmap
+# Porisrom — Implementation Roadmap
 
 Companion to [PRD.md](./PRD.md), [data-model.md](./data-model.md), [api-design.md](./api-design.md). Phases are ordered by dependency — each one assumes the previous is done. Tasks within a phase are meant to be small and independently testable (build + verify, then move to the next).
 
@@ -19,10 +19,10 @@ Do not start implementation until the docs above are confirmed correct.
 
 Goal: a running NestJS API with auth, testable via curl/Postman, completely independent of `apps/frontend`.
 
-- [x] Scaffold NestJS app in `apps/backend` (built manually rather than via `nest new`, to align with `@porishrom/backend` package name and workspace conventions already in place)
+- [x] Scaffold NestJS app in `apps/backend` (built manually rather than via `nest new`, to align with `@porisrom/backend` package name and workspace conventions already in place)
 - [x] `docker-compose.yml` at repo root: `postgres` service for local dev (port 5433, since 5432 was already taken by an unrelated container on this machine)
 - [x] Point `packages/database` at local Postgres, run first `prisma migrate dev` (User model only, extended with `status` field + `admin` role per data-model.md)
-- [x] Wire `apps/backend` to import `@porishrom/database`'s generated Prisma client (required adding a build step to `packages/database` — Prisma 7's new client generator outputs raw TypeScript with explicit `.ts` import extensions, so the package now compiles itself to CJS via `tsc` with `moduleFormat = "cjs"` + `rewriteRelativeImportExtensions`, and exposes a `createPrismaClient()` factory wrapping `@prisma/adapter-pg`)
+- [x] Wire `apps/backend` to import `@porisrom/database`'s generated Prisma client (required adding a build step to `packages/database` — Prisma 7's new client generator outputs raw TypeScript with explicit `.ts` import extensions, so the package now compiles itself to CJS via `tsc` with `moduleFormat = "cjs"` + `rewriteRelativeImportExtensions`, and exposes a `createPrismaClient()` factory wrapping `@prisma/adapter-pg`)
 - [x] Auth module: signup (role fixed at signup), login, JWT access+refresh via httpOnly cookies, logout, `/auth/me`
 - [x] Password hashing with bcrypt (bcryptjs, matching `apps/frontend/src/app/auth/actions.ts`)
 - [x] Basic role guard (Freelancer/Client/Admin) usable by future modules

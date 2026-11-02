@@ -6,8 +6,9 @@ import {
   NotFoundException,
   Optional,
 } from "@nestjs/common";
-import type { Prisma } from "@porishrom/database";
+import type { Prisma } from "@porisrom/database";
 
+import { lockMarketplacePair, assertNoParticipantBlock } from "../marketplace-access";
 import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 
@@ -37,6 +38,7 @@ export class ConnectionsService {
     const result = await this.prisma.db.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${pairKey}, 0))::text AS lock_value`;
 
+      await lockMarketplacePair(tx, { requesterId, receiverId });
       const [requester, receiver] = await Promise.all([
         tx.user.findUnique({
           where: { id: requesterId },
@@ -66,6 +68,7 @@ export class ConnectionsService {
         );
       }
 
+      await assertNoParticipantBlock(tx, { requesterId, receiverId });
       const existing = await tx.connection.findFirst({
         where: {
           OR: [
@@ -179,7 +182,7 @@ export class ConnectionsService {
     connectionId: string,
   ) {
     await tx.$queryRaw`SELECT "id" FROM "Connection" WHERE "id" = ${connectionId} FOR UPDATE`;
-    const connection = await tx.connection.findUnique({
+    let connection = await tx.connection.findUnique({
       where: { id: connectionId },
       include: {
         requester: { select: { role: true, status: true } },
@@ -195,6 +198,14 @@ export class ConnectionsService {
     if (connection.status !== "pending") {
       throw new ConflictException("This connection request has already been responded to");
     }
+    await lockMarketplacePair(tx, connection);
+    // Re-read account relations after acquiring the moderation locks. The first
+    // query may have observed active accounts while moderation was uncommitted.
+    connection = await tx.connection.findUnique({
+      where: { id: connectionId },
+      include: { requester: { select: { role: true, status: true } }, receiver: { select: { role: true, status: true } } },
+    });
+    if (!connection) throw new NotFoundException("Connection not found");
     const validPair =
       (connection.requester.role === "client" && connection.receiver.role === "freelancer") ||
       (connection.requester.role === "freelancer" && connection.receiver.role === "client");
@@ -205,6 +216,7 @@ export class ConnectionsService {
     ) {
       throw new ConflictException("This connection request is no longer actionable");
     }
+    await assertNoParticipantBlock(tx, connection);
     return connection;
   }
 }

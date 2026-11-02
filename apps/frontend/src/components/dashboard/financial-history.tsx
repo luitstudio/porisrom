@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { getPublicBackendUrl } from "@/lib/public-backend-url";
+import { useBackendAccessToken } from "@/lib/use-backend-access-token";
 
 type Props = { initialData: FinancialHistory; accessToken: string; refreshButtonClassName?: string; clientPresentation?: boolean };
 const money = (value: number, currency: string) => new Intl.NumberFormat("en-IN", { style: "currency", currency, maximumFractionDigits: 2 }).format(value);
@@ -18,9 +19,10 @@ const label = (value: string) => value.replaceAll("_", " ").replace(/\b\w/g, (le
 const paymentVariant = (status: string | undefined) => status?.includes("verified") ? "secondary" as const : "outline" as const;
 
 export function FinancialHistory({ initialData, accessToken, refreshButtonClassName, clientPresentation = false }: Props) {
+  const currentAccessToken = useBackendAccessToken(accessToken);
   const [data, setData] = React.useState(initialData); const [loading, setLoading] = React.useState(false); const [error, setError] = React.useState<string | null>(null);
   const refresh = React.useCallback(async () => { setLoading(true); setError(null); try { setData(await getFinancialHistoryAction()); } catch { setError("We couldn't refresh your payment history."); } finally { setLoading(false); } }, []);
-  React.useEffect(() => { const socket = io(getPublicBackendUrl(), { auth: { token: accessToken }, transports: ["websocket", "polling"] }); const onAssignmentUpdated = () => void refresh(); socket.on("work-assignment.updated", onAssignmentUpdated); return () => { socket.off("work-assignment.updated", onAssignmentUpdated); socket.disconnect(); }; }, [accessToken, refresh]);
+  React.useEffect(() => { if (!currentAccessToken) return; const socket = io(getPublicBackendUrl(), { auth: { token: currentAccessToken }, transports: ["websocket", "polling"] }); const onAssignmentUpdated = () => void refresh(); socket.on("work-assignment.updated", onAssignmentUpdated); return () => { socket.off("work-assignment.updated", onAssignmentUpdated); socket.disconnect(); }; }, [currentAccessToken, refresh]);
   const currency = data.history[0]?.currency ?? "INR"; const freelancer = data.role === "freelancer"; const counterpart = freelancer ? "Client" : "Freelancer";
   if (clientPresentation) return <ClientFinancialHistory data={data} loading={loading} error={error} refresh={refresh} />;
   return <div className="flex min-w-0 flex-col gap-section-gap">

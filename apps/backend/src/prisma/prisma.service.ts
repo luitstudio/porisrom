@@ -1,5 +1,5 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
-import { createPrismaClient } from "@porishrom/database";
+import { createPrismaClient } from "@porisrom/database";
 
 export type PrismaDb = ReturnType<typeof createPrismaClient>;
 

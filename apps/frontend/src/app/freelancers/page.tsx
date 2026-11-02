@@ -6,6 +6,7 @@ import { FreelancerDiscoveryError } from "@/components/discovery/freelancer-disc
 import { FreelancerDiscoveryTransition } from "@/components/discovery/freelancer-discovery-transition";
 import { Footer } from "@/components/layout/footer";
 import { Navbar } from "@/components/layout/navbar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ASSAM_DISTRICTS } from "@/lib/assam-districts";
 import { backendFetch } from "@/lib/backend-api";
 
@@ -17,12 +18,15 @@ export const metadata: Metadata = {
 
 const EXPERIENCE_RANGES = ["Less than 1 year", "1–2 years", "3–5 years", "5+ years"];
 
+const RATING_OPTIONS = ["5", "4", "3", "2", "1"];
+
 type Category = { id: string; name: string; slug: string };
 type Skill = { id: string; name: string; categoryId: string | null };
 
 type FreelancerSearchItem = {
   id: string;
   bio: string | null;
+  profilePhotoUrl: string | null;
   state: string | null;
   district: string | null;
   experienceLevel: string | null;
@@ -48,6 +52,16 @@ function buildQueryString(params: Record<string, string | undefined>) {
   return query.toString();
 }
 
+function initialsFor(name: string) {
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase() || "P";
+}
+
 export default async function FreelancersPage({
   searchParams,
 }: {
@@ -64,8 +78,8 @@ export default async function FreelancersPage({
   const verifiedOnly = params.verifiedOnly === "true";
   const page = typeof params.page === "string" ? Number(params.page) || 1 : 1;
 
-  const [session, categories, skills, result] = await Promise.all([
-    auth(),
+  const session = await auth();
+  const [categories, skills, result] = await Promise.all([
     backendFetch<Category[]>("/categories").catch(() => null),
     backendFetch<Skill[]>("/skills").catch(() => null),
     backendFetch<SearchResult>(
@@ -80,7 +94,7 @@ export default async function FreelancersPage({
         verifiedOnly: verifiedOnly ? "true" : undefined,
         page: String(page),
         pageSize: "12",
-      })}`
+      })}`, { accessToken: session?.accessToken }
     ).catch(() => null),
   ]);
 
@@ -129,8 +143,7 @@ export default async function FreelancersPage({
             {result.total} freelancer{result.total === 1 ? "" : "s"} found
           </p>
 
-        <form data-discovery-form className="mt-6 grid grid-cols-1 gap-3 min-[430px]:grid-cols-2 md:grid-cols-4 lg:grid-cols-7" method="get">
-          {minRating && <input type="hidden" name="minRating" value={minRating} />}
+        <form data-discovery-form className="mt-6 grid grid-cols-1 gap-3 min-[430px]:grid-cols-2 md:grid-cols-4 lg:grid-cols-8" method="get">
           <input
             type="search"
             name="keyword"
@@ -140,6 +153,7 @@ export default async function FreelancersPage({
           />
           <select
             name="categoryId"
+            aria-label="Filter freelancers by category"
             defaultValue={categoryId ?? ""}
             className="h-11 min-w-0 w-full rounded-lg border border-input bg-transparent px-3 text-base text-foreground md:text-sm"
           >
@@ -152,6 +166,7 @@ export default async function FreelancersPage({
           </select>
           <select
             name="skillId"
+            aria-label="Filter freelancers by skill"
             defaultValue={skillId ?? ""}
             className="h-11 min-w-0 w-full rounded-lg border border-input bg-transparent px-3 text-base text-foreground md:text-sm"
           >
@@ -164,6 +179,7 @@ export default async function FreelancersPage({
           </select>
           <select
             name="district"
+            aria-label="Filter freelancers by district"
             defaultValue={district ?? ""}
             className="h-11 min-w-0 w-full rounded-lg border border-input bg-transparent px-3 text-base text-foreground md:text-sm"
           >
@@ -176,6 +192,7 @@ export default async function FreelancersPage({
           </select>
           <select
             name="experienceLevel"
+            aria-label="Filter freelancers by experience"
             defaultValue={experienceLevel ?? ""}
             className="h-11 min-w-0 w-full rounded-lg border border-input bg-transparent px-3 text-base text-foreground md:text-sm"
           >
@@ -183,6 +200,19 @@ export default async function FreelancersPage({
             {EXPERIENCE_RANGES.map((e) => (
               <option key={e} value={e}>
                 {e}
+              </option>
+            ))}
+          </select>
+          <select
+            name="minRating"
+            aria-label="Filter freelancers by minimum rating"
+            defaultValue={minRating ?? ""}
+            className="h-11 min-w-0 w-full rounded-lg border border-input bg-transparent px-3 text-base text-foreground md:text-sm"
+          >
+            <option value="">Any rating</option>
+            {RATING_OPTIONS.map((rating) => (
+              <option key={rating} value={rating}>
+                {rating}+ rating
               </option>
             ))}
           </select>
@@ -218,19 +248,29 @@ export default async function FreelancersPage({
               href={`/freelancers/${item.id}`}
               className="min-w-0 rounded-2xl border border-border bg-card p-4 transition-colors hover:border-primary/40 sm:p-5"
             >
-              <div className="flex items-center justify-between gap-2">
-                <h2 className="min-w-0 break-words font-semibold text-foreground">{item.user.name}</h2>
-                {item.isBadgeVerified && (
-                  <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                    Verified
-                  </span>
-                )}
+              <div className="flex items-start gap-3">
+                <Avatar className="size-12">
+                  {item.profilePhotoUrl && <AvatarImage src={item.profilePhotoUrl} alt="" />}
+                  <AvatarFallback className="bg-accent text-sm font-semibold text-accent-foreground">
+                    {initialsFor(item.user.name)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <h2 className="min-w-0 break-words font-semibold text-foreground">{item.user.name}</h2>
+                    {item.isBadgeVerified && (
+                      <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                        Verified
+                      </span>
+                    )}
+                  </div>
+                  {(item.district || item.state) && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {[item.district, item.state].filter(Boolean).join(", ")}
+                    </p>
+                  )}
+                </div>
               </div>
-              {(item.district || item.state) && (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {[item.district, item.state].filter(Boolean).join(", ")}
-                </p>
-              )}
               {item.bio && (
                 <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{item.bio}</p>
               )}

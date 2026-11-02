@@ -1,0 +1,92 @@
+# Explicitly separate from the existing developer compose project and volumes.
+name: porisrom-staging-simulation
+x-api-environment: &api-environment
+  NODE_ENV: production
+  DATABASE_URL: ${DATABASE_URL:?Supply the staging database URL}
+  JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?Supply access secret}
+  JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Supply distinct refresh secret}
+  FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:?Supply exact HTTPS origins}
+  BACKEND_PUBLIC_URL: ${BACKEND_PUBLIC_URL:?Supply HTTPS API origin}
+  CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:?Supply staging storage}
+  CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:?Supply staging storage}
+  CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:?Supply staging storage}
+  SOCKET_ADAPTER: ${SOCKET_ADAPTER:-postgres}
+  SOCKET_CHANNEL_PREFIX: ${SOCKET_CHANNEL_PREFIX:?Supply environment-specific channel}
+  REALTIME_EXPECTED_INSTANCES: ${REALTIME_EXPECTED_INSTANCES:-1}
+  KYC_LOCAL_FALLBACK_ENABLED: "false"
+services:
+  postgres:
+    image: postgres:18.2-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?Supply staging database user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Supply staging database password}
+      POSTGRES_DB: ${POSTGRES_DB:?Supply staging database name}
+    volumes:
+      - staging_postgres_18:/var/lib/postgresql
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 1g
+    cpus: 1.0
+  # Opt-in only. Starting applications NEVER applies migrations automatically.
+  migrate:
+    profiles: [migration]
+    build: { context: .., target: migrate }
+    environment: { DATABASE_URL: '${DATABASE_URL:?Supply staging database URL}' }
+    command: [migrate, deploy]
+    depends_on: { postgres: { condition: service_healthy } }
+    restart: "no"
+  backend:
+    build: { context: .., target: backend }
+    environment: *api-environment
+    ports: ["127.0.0.1:4400:4000"]
+    volumes: [staging_public_assets:/app/runtime/public]
+    depends_on: { postgres: { condition: service_healthy } }
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 768m
+    cpus: 1.0
+    pids_limit: 256
+  frontend:
+    build:
+      context: ..
+      target: frontend
+      args:
+        BACKEND_URL: ${BACKEND_URL:?Supply HTTPS server API origin}
+        NEXT_PUBLIC_BACKEND_URL: ${NEXT_PUBLIC_BACKEND_URL:?Supply HTTPS browser API origin}
+    environment:
+      BACKEND_URL: ${BACKEND_URL:?Supply HTTPS API origin}
+      AUTH_SECRET: ${AUTH_SECRET:?Supply Auth.js secret}
+      AUTH_URL: ${AUTH_URL:?Supply HTTPS marketplace origin}
+      AUTH_TRUST_HOST: "true"
+    ports: ["127.0.0.1:3300:3000"]
+    depends_on: { backend: { condition: service_healthy } }
+    restart: unless-stopped
+    init: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 768m
+    cpus: 1.0
+  admin:
+    build:
+      context: ..
+      target: admin
+      args: { BACKEND_URL: '${BACKEND_URL:?Supply HTTPS API origin}' }
+    environment: { BACKEND_URL: '${BACKEND_URL:?Supply HTTPS API origin}' }
+    ports: ["127.0.0.1:3301:3001"]
+    depends_on: { backend: { condition: service_healthy } }
+    restart: unless-stopped
+    init: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 512m
+    cpus: 0.5
+volumes:
+  staging_postgres_18:
+  staging_public_assets:

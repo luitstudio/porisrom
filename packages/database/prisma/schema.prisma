@@ -1,5 +1,5 @@
-// Canonical Prisma schema for Porishrom.
-// Owned exclusively by @porishrom/backend — no other app should import this client directly.
+// Canonical Prisma schema for Porisrom.
+// Owned exclusively by @porisrom/backend — no other app should import this client directly.
 //
 // Dev: local Postgres via Docker Compose (DATABASE_URL points at localhost).
 // Prod: same Postgres, running on the VPS (DATABASE_URL swapped, `prisma migrate deploy`).
@@ -41,10 +41,34 @@ model User {
   freelancerProfile FreelancerProfile?
   companyProfile    CompanyProfile?
 
+  authSessions AuthSession[]
+
   connectionsSent     Connection[] @relation("ConnectionRequester")
   connectionsReceived Connection[] @relation("ConnectionReceiver")
   messages            Message[]
   reviewsAuthored     Review[]
+  paymentClaims       PaymentClaim[]
+  blocksSent          UserBlock[] @relation("SafetyBlocker")
+  blocksReceived      UserBlock[] @relation("SafetyBlocked")
+  safetyCasesCreated  SafetyCase[] @relation("SafetyReporter")
+  safetyCasesTargeted SafetyCase[] @relation("SafetyTarget")
+  safetyCaseEvents    SafetyCaseEvent[]
+  notificationReadStates NotificationReadState[]
+}
+
+model AuthSession {
+  id              String    @id
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash       String
+  expiresAt       DateTime
+  revokedAt       DateTime?
+  reuseDetectedAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 enum VerificationStatus {
@@ -66,6 +90,7 @@ model FreelancerProfile {
   userId             String             @unique
   user               User               @relation(fields: [userId], references: [id])
   bio                String?
+  profilePhotoUrl    String?
   address            String?
   state              String?
   district           String?
@@ -114,6 +139,31 @@ model CompanyProfile {
   updatedAt          DateTime           @updatedAt
 
   categories CompanyCategory[]
+  documents  CompanyDocument[]
+}
+
+enum CompanyDocumentType {
+  company_certificate
+  aadhaar
+}
+
+enum CompanyDocumentUploadStatus {
+  uploaded
+}
+
+model CompanyDocument {
+  id               String                      @id @default(cuid())
+  companyProfileId String
+  companyProfile   CompanyProfile              @relation(fields: [companyProfileId], references: [id], onDelete: Cascade)
+  type             CompanyDocumentType
+  uploadStatus     CompanyDocumentUploadStatus @default(uploaded)
+  storagePublicId  String
+  storageAssetId   String
+  createdAt        DateTime                    @default(now())
+  updatedAt        DateTime                    @updatedAt
+
+  @@index([companyProfileId])
+  @@index([type])
 }
 
 model Category {
@@ -218,6 +268,7 @@ model Conversation {
 
   messages        Message[]
   workAssignments WorkAssignment[]
+  safetyCases     SafetyCase[]
 }
 
 model Message {
@@ -272,6 +323,7 @@ model WorkAssignment {
   deliverables        Deliverable[]
   paymentVerification PaymentVerification?
   reviews             Review[]
+  safetyCases         SafetyCase[]
 }
 
 model WorkAssignmentEvent {
@@ -308,6 +360,7 @@ enum PaymentVerificationStatus {
   awaiting_freelancer
   mismatch
   verified
+  administratively_resolved
 }
 
 model PaymentVerification {
@@ -319,8 +372,25 @@ model PaymentVerification {
   freelancerUtr       String?
   freelancerClaimedAt DateTime?
   mismatchCount       Int                        @default(0)
+  mismatchCountAtReopen Int                       @default(0)
   status              PaymentVerificationStatus  @default(awaiting_client)
   verifiedAt          DateTime?
+  claims              PaymentClaim[]
+}
+
+// Append-only evidence of claims submitted after this feature's introduction.
+// Current comparison fields may be cleared for another round; this history remains.
+model PaymentClaim {
+  id                    String              @id @default(cuid())
+  paymentVerificationId String
+  paymentVerification   PaymentVerification @relation(fields: [paymentVerificationId], references: [id])
+  userId                String
+  user                  User                @relation(fields: [userId], references: [id])
+  party                 Role
+  reference             String
+  createdAt             DateTime            @default(now())
+
+  @@index([paymentVerificationId, createdAt])
 }
 
 enum ReviewDirection {
@@ -343,17 +413,106 @@ model Review {
   @@unique([workAssignmentId, direction])
 }
 
-// userId null = broadcast to all users. Broadcast read-state is a known MVP
-// simplification: isRead is a single shared flag on the row, so marking a
-// broadcast read affects how it displays for every recipient, not just the
-// caller. Acceptable here since this is an admin communication aside, not a
-// core workflow; a proper per-user read join table would be the real fix.
+// userId null = broadcast to all users. Direct notifications keep isRead on
+// the row; broadcast notifications use NotificationReadState for per-user read
+// state so one recipient cannot mark the broadcast read for everyone.
 model Notification {
-  id        String   @id @default(cuid())
-  userId    String?
-  type      String
-  message   String
-  isRead    Boolean  @default(false)
-  createdBy String?
+  id         String                  @id @default(cuid())
+  userId     String?
+  type       String
+  message    String
+  isRead     Boolean                 @default(false)
+  createdBy  String?
+  createdAt  DateTime                @default(now())
+  readStates NotificationReadState[]
+}
+
+model NotificationReadState {
+  notificationId String
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  readAt         DateTime     @default(now())
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@id([notificationId, userId])
+  @@index([userId])
+}
+
+model UserBlock {
+  id            String @id @default(cuid())
+  blockerId     String
+  blocker       User @relation("SafetyBlocker", fields: [blockerId], references: [id], onDelete: Restrict)
+  blockedUserId String
+  blockedUser   User @relation("SafetyBlocked", fields: [blockedUserId], references: [id], onDelete: Restrict)
+  activeKey     String? @unique
+  createdAt     DateTime @default(now())
+  unblockedAt   DateTime?
+
+  @@index([blockerId, blockedUserId, unblockedAt])
+  @@index([blockedUserId, blockerId, unblockedAt])
+}
+
+enum SafetyCaseKind {
+  user_report
+  cancellation
+  support
+}
+
+enum SafetyCaseStatus {
+  open
+  resolved
+  dismissed
+}
+
+model SafetyCase {
+  id             String @id @default(cuid())
+  kind           SafetyCaseKind
+  status         SafetyCaseStatus @default(open)
+  reporterId     String
+  reporter       User @relation("SafetyReporter", fields: [reporterId], references: [id], onDelete: Restrict)
+  targetUserId   String?
+  targetUser     User? @relation("SafetyTarget", fields: [targetUserId], references: [id], onDelete: Restrict)
+  conversationId String?
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: Restrict)
+  assignmentId   String?
+  assignment     WorkAssignment? @relation(fields: [assignmentId], references: [id], onDelete: Restrict)
+  category       String
+  reason         String
+  activeKey      String? @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  reviewedById   String?
+  reviewedAt     DateTime?
+  decision       String?
+  decisionReason String?
+  events         SafetyCaseEvent[]
+
+  @@index([kind, status, createdAt])
+  @@index([reporterId, createdAt])
+  @@index([assignmentId])
+}
+
+model SafetyCaseEvent {
+  id        String @id @default(cuid())
+  caseId    String
+  case      SafetyCase @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  actorId   String
+  actor     User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  action    String
+  note      String?
   createdAt DateTime @default(now())
+
+  @@index([caseId, createdAt])
+}
+
+// Ephemeral adapter transport payloads, not the persisted message/audit history.
+model SocketIoAttachment {
+  id        BigInt @id @default(autoincrement())
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  payload   Bytes
+
+  @@index([createdAt])
+  @@map("socket_io_attachments")
 }

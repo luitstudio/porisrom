@@ -16,6 +16,7 @@ function harness(users: Record<string, TestUser>) {
   } = null;
   const lockCalls: unknown[][] = [];
   const tx = {
+    userBlock: { findFirst: vi.fn().mockResolvedValue(null) },
     $queryRaw: vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => {
       lockCalls.push([Array.from(strings).join("?"), ...values]);
       return Promise.resolve([{ lock_value: "" }]);
@@ -55,7 +56,7 @@ describe("connection creation advisory locking", () => {
     await service.create("client", "freelancer");
     await expect(service.create("freelancer", "client")).rejects.toBeInstanceOf(ConflictException);
     expect(tx.connection.create).toHaveBeenCalledOnce();
-    expect(lockCalls[0]?.[1]).toBe(lockCalls[1]?.[1]);
+    expect(lockCalls[0]?.[1]).toBe(lockCalls[2]?.[1]);
   });
 
   it.each([

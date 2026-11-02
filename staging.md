@@ -1,4 +1,4 @@
-# Porishrom staging runbook
+# Porisrom staging runbook
 
 ## Scope
 
@@ -44,13 +44,13 @@ Do not use localhost URLs, example secrets, production credentials, public Cloud
 2. Run migrations exactly once:
 
    ```powershell
-   pnpm.cmd --filter @porishrom/database migrate:deploy
+   pnpm.cmd --filter @porisrom/database migrate:deploy
    ```
 
 3. Seed the required catalog taxonomy if the staging database is new:
 
    ```powershell
-   pnpm.cmd --filter @porishrom/database seed
+   pnpm.cmd --filter @porisrom/database seed
    ```
 
 4. Deploy backend, then check:
@@ -113,7 +113,7 @@ Run before each staging deployment:
 
 ```powershell
 pnpm.cmd install --frozen-lockfile
-pnpm.cmd --filter @porishrom/backend test
+pnpm.cmd --filter @porisrom/backend test
 pnpm.cmd lint
 pnpm.cmd type-check
 pnpm.cmd build

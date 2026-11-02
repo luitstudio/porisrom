@@ -38,7 +38,7 @@ export const LAUNCH_COMPANIES: LaunchCompany[] = [
 ];
 
 function demoEmail(kind: "freelancer" | "client", key: string) {
-  return `demo.${kind}.${key}@porishrom.local`;
+  return `demo.${kind}.${key}@porisrom.local`;
 }
 
 function profileStatusFromEnvironment(): "pending" | "approved" {

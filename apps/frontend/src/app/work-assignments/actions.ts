@@ -46,7 +46,8 @@ export type PaymentVerificationStatus =
   | "awaiting_client"
   | "awaiting_freelancer"
   | "mismatch"
-  | "verified";
+  | "verified"
+  | "administratively_resolved";
 
 export type PaymentVerification = {
   id: string;

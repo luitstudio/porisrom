@@ -9,6 +9,9 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { Input } from "@/components/ui/input";
 import { upsertMessageById } from "@/lib/realtime-message.mjs";
 import { getPublicBackendUrl } from "@/lib/public-backend-url";
+import { useBackendAccessToken } from "@/lib/use-backend-access-token";
+
+import { useConversationAccess } from "@/lib/use-conversation-access";
 
 const POLL_INTERVAL_MS = 4000;
 
@@ -27,6 +30,8 @@ export function ChatThread({
   otherPartyName,
   initialMessages,
 }: ChatThreadProps) {
+  const { readOnly, checked } = useConversationAccess(conversationId);
+  const currentAccessToken = useBackendAccessToken(accessToken);
   const [messages, setMessages] = React.useState<MessageItem[]>(initialMessages);
   const [draft, setDraft] = React.useState("");
   const [sending, setSending] = React.useState(false);
@@ -46,8 +51,9 @@ export function ChatThread({
   }, [conversationId]);
 
   React.useEffect(() => {
+    if (!currentAccessToken) return;
     const socket = io(getPublicBackendUrl(), {
-      auth: { token: accessToken },
+      auth: { token: currentAccessToken },
       transports: ["websocket", "polling"],
     });
 
@@ -61,7 +67,7 @@ export function ChatThread({
       socket.off("message.created", onMessageCreated);
       socket.disconnect();
     };
-  }, [accessToken, conversationId]);
+  }, [currentAccessToken, conversationId]);
 
   React.useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -70,7 +76,7 @@ export function ChatThread({
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
     const body = draft.trim();
-    if (!body) return;
+    if (!body || readOnly) return;
 
     setSending(true);
     setError(null);
@@ -114,6 +120,7 @@ export function ChatThread({
         <div ref={bottomRef} />
       </CardContent>
 
+      {checked && readOnly && <p role="status" className="px-4 py-2 text-sm text-muted-foreground">This conversation is read-only because a counterpart account is unavailable. Contact support.</p>}
       <CardFooter className="border-t border-border bg-card p-3 sm:p-4">
         <form onSubmit={handleSend} className="flex w-full items-center gap-2">
         <Input
@@ -121,10 +128,10 @@ export function ChatThread({
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder="Type a message..."
-          disabled={sending}
+          disabled={sending || readOnly}
           className="h-10 flex-1"
         />
-        <Button type="submit" disabled={sending || !draft.trim()}>
+        <Button type="submit" disabled={sending || readOnly || !draft.trim()}>
           Send
         </Button>
         </form>

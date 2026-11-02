@@ -42,6 +42,11 @@ describe("production JWT secret configuration", () => {
     expect(validateProductionAuthSecrets(config)).toBe(config);
   });
 
+  it("rejects equal access and refresh secrets in production", () => {
+    expect(() => validateProductionAuthSecrets({ ...productionConfig, JWT_REFRESH_SECRET: strongAccessSecret,
+      FRONTEND_ORIGIN: "https://marketplace.example.test" })).toThrow("must be distinct");
+  });
+
   it("rejects a production configuration with a missing frontend origin", () => {
     expect(() => validateProductionAuthSecrets(productionConfig)).toThrow("FRONTEND_ORIGIN must be configured in production");
   });

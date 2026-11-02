@@ -8,7 +8,7 @@ declare module "next-auth" {
       isOnboarded: boolean;
     } & DefaultSession["user"];
     accessToken: string;
-    error?: "RefreshFailed";
+    error?: "RefreshFailed" | "RefreshPending";
   }
 
   interface User {
@@ -28,6 +28,6 @@ declare module "next-auth/jwt" {
     accessToken: string;
     refreshToken: string;
     accessTokenExpires: number;
-    error?: "RefreshFailed";
+    error?: "RefreshFailed" | "RefreshPending";
   }
 }

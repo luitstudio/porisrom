@@ -1,4 +1,4 @@
-# Porishrom — API Design
+# Porisrom — API Design
 
 Companion to [PRD.md](./PRD.md) and [data-model.md](./data-model.md). All endpoints live on `apps/backend` (NestJS). `apps/frontend` and `apps/admin` are the only consumers — no other app touches the database directly.
 

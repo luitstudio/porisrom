@@ -1,0 +1,65 @@
+name: Release verification
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:18.2-bookworm
+        env:
+          POSTGRES_USER: porisrom_ci
+          # Public, disposable CI fixture password, never a deployment secret.
+          POSTGRES_PASSWORD: isolated-ci-fixture-only
+          POSTGRES_DB: porisrom_ci_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U porisrom_ci -d porisrom_ci_test"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://porisrom_ci:isolated-ci-fixture-only@127.0.0.1:5432/porisrom_ci_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.0.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.11.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: node scripts/verify-release.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sanitized-release-verification
+          path: |
+            tmp/release-verification.json
+            tmp/backend-tests.json
+          if-no-files-found: warn
+          retention-days: 7
+  images:
+    name: Image build (${{ matrix.target }})
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [backend, frontend, admin, migrate]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build without pushing (synthetic public origins only)
+        run: >-
+          docker build --target ${{ matrix.target }}
+          --build-arg BACKEND_URL=https://api.example.test
+          --build-arg NEXT_PUBLIC_BACKEND_URL=https://api.example.test
+          --tag porisrom-ci:${{ matrix.target }} .
+      - name: Verify non-root application image configuration
+        if: matrix.target != 'migrate'
+        run: |
+          test "$(docker image inspect --format '{{.Config.User}}' porisrom-ci:${{ matrix.target }})" = node
+          docker image inspect --format '{{json .Config.Cmd}}' porisrom-ci:${{ matrix.target }}

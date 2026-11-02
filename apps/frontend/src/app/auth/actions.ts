@@ -24,13 +24,6 @@ const loginSchema = z.object({
   password: z.string().min(1, "Enter your password."),
 });
 
-function dashboardPathFor(role: "freelancer" | "client" | "admin" | null) {
-  // Admins have no workflow inside apps/frontend — the real admin console is
-  // the separate apps/admin app (Phase 9), so just send them to the homepage.
-  if (role === "admin") return "/";
-  return role === "freelancer" ? "/dashboard/freelancer" : "/dashboard/client";
-}
-
 export async function signupAction(
   _prevState: AuthActionState,
   formData: FormData
@@ -57,8 +50,9 @@ export async function signupAction(
 
   const { name, email, password, role } = parsed.data;
 
+  let signupSession: { accessToken: string; refreshToken: string };
   try {
-    await backendFetch("/auth/signup", {
+    signupSession = await backendFetch("/auth/signup", {
       method: "POST",
       body: { name, email, password, role },
     });
@@ -76,6 +70,14 @@ export async function signupAction(
       return { error: error.message || "We couldn’t create your account. Please check your details and try again." };
     }
     return { error: "Something went wrong. Please try again." };
+  }
+
+  // Registration issues a backend session; Auth.js establishes its own session
+  // through Credentials. Revoke the transient registration session first.
+  try {
+    await backendFetch("/auth/logout", { method: "POST", accessToken: signupSession.accessToken, body: { refreshToken: signupSession.refreshToken } });
+  } catch {
+    return { error: "Account created, but sign-in setup could not be completed. Please log in." };
   }
 
   try {
@@ -102,19 +104,6 @@ export async function loginAction(
 
   const { email, password } = parsed.data;
 
-  let target: string;
-  try {
-    const result = await backendFetch<{
-      user: { role: "freelancer" | "client" | "admin" | null; isOnboarded: boolean };
-    }>("/auth/login", { method: "POST", body: { email, password } });
-    target = result.user.isOnboarded ? dashboardPathFor(result.user.role) : "/onboarding";
-  } catch (error) {
-    if (error instanceof BackendApiError && error.status === 401) {
-      return { error: "Invalid email or password." };
-    }
-    return { error: "Something went wrong. Please try again." };
-  }
-
   try {
     await signIn("credentials", { email, password, redirect: false });
   } catch (error) {
@@ -124,5 +113,7 @@ export async function loginAction(
     throw error;
   }
 
-  redirect(target);
+  // Credentials performs the single backend login. Dashboard routing already
+  // checks role and onboarding; a preflight login would leave an orphan session.
+  redirect("/dashboard");
 }

@@ -66,7 +66,7 @@ export function LoginForm() {
             name="email"
             type="email"
             autoComplete="off"
-            placeholder="balamia@gmail.com"
+            placeholder="you@example.com"
             disabled={isPending}
             required
           />

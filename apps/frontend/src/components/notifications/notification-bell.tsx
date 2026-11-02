@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from "@/components/ui/popover";
 import { getPublicBackendUrl } from "@/lib/public-backend-url";
+import { useBackendAccessToken } from "@/lib/use-backend-access-token";
 import {
   markNotificationRead,
   unreadNotificationCount,
@@ -50,6 +51,7 @@ function formatNotificationTime(iso: string) {
 }
 
 export function NotificationBell({ accessToken, messagesHref }: NotificationBellProps) {
+  const currentAccessToken = useBackendAccessToken(accessToken);
   const router = useRouter();
   const [notifications, setNotifications] = React.useState<NotificationItem[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -80,8 +82,9 @@ export function NotificationBell({ accessToken, messagesHref }: NotificationBell
   }, [refresh]);
 
   React.useEffect(() => {
+    if (!currentAccessToken) return;
     const socket = io(getPublicBackendUrl(), {
-      auth: { token: accessToken },
+      auth: { token: currentAccessToken },
       transports: ["websocket", "polling"],
     });
     const onCreated = (notification: NotificationItem) => setNotifications((current) => upsertNotificationById(current, notification));
@@ -99,7 +102,7 @@ export function NotificationBell({ accessToken, messagesHref }: NotificationBell
       socket.off("connect", onConnect);
       socket.disconnect();
     };
-  }, [accessToken, refresh]);
+  }, [currentAccessToken, refresh]);
 
   async function openNotification(notification: NotificationItem) {
     if (!notification.isRead) {

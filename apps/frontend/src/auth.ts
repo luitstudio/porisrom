@@ -1,7 +1,7 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 
-import { authConfig } from "@/auth.config";
+import { createAuthConfig } from "@/auth.config";
 import { backendFetch } from "@/lib/backend-api";
 
 type LoginResponse = {
@@ -17,8 +17,8 @@ type LoginResponse = {
   refreshToken: string;
 };
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
-  ...authConfig,
+export const { handlers, auth, signIn, signOut } = NextAuth((request) => ({
+  ...createAuthConfig(Boolean(request)),
   providers: [
     Credentials({
       credentials: {
@@ -48,11 +48,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             accessToken: result.accessToken,
             refreshToken: result.refreshToken,
           };
-        } catch (err) {
-          console.error("Backend login failed during authorize():", err);
+        } catch {
+          console.error("Backend login failed during authorize()");
           return null;
         }
       },
     }),
   ],
-});
+}));

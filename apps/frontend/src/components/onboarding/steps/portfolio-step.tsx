@@ -57,7 +57,7 @@ export function PortfolioStep({
         <p className="text-sm text-muted-foreground">
           Lead with your best work — clients judge a portfolio in seconds.
         </p>
-        <p className="text-xs leading-5 text-muted-foreground">Share Google Drive, GitHub, Behance, YouTube, or another public URL. Portfolio files are not uploaded to Porishrom.</p>
+        <p className="text-xs leading-5 text-muted-foreground">Share Google Drive, GitHub, Behance, YouTube, or another public URL. Portfolio files are not uploaded to Porisrom.</p>
       </BentoCard>
 
       <BentoCard title="Skills showcase" icon={Sparkles} span="2">

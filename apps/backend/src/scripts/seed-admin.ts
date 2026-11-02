@@ -1,7 +1,7 @@
 import "dotenv/config";
 
 import bcrypt from "bcryptjs";
-import { createPrismaClient } from "@porishrom/database";
+import { createPrismaClient } from "@porisrom/database";
 
 async function main() {
   const email = process.env.ADMIN_EMAIL?.trim();
@@ -26,7 +26,7 @@ async function main() {
   const passwordHash = await bcrypt.hash(password, 10);
   await db.user.create({
     data: {
-      name: "Porishrom Admin",
+      name: "Porisrom Admin",
       email,
       passwordHash,
       role: "admin",

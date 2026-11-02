@@ -12,6 +12,7 @@ export type TaxonomyItem = {
 
 export type FreelancerProfileData = {
   name: string;
+  profilePhotoFile: File | null;
   address: string;
   state: string;
   district: string;
@@ -24,6 +25,7 @@ export type FreelancerProfileData = {
 
 export type CustomerProfileData = {
   companyName: string;
+  logoFile: File | null;
   address: string;
   state: string;
   certificateFiles: File[];
@@ -39,6 +41,7 @@ export type PortfolioData = {
 
 export const EMPTY_FREELANCER_PROFILE: FreelancerProfileData = {
   name: "",
+  profilePhotoFile: null,
   address: "",
   state: "Assam",
   district: "",
@@ -51,6 +54,7 @@ export const EMPTY_FREELANCER_PROFILE: FreelancerProfileData = {
 
 export const EMPTY_CUSTOMER_PROFILE: CustomerProfileData = {
   companyName: "",
+  logoFile: null,
   address: "",
   state: "Assam",
   certificateFiles: [],
@@ -62,4 +66,15 @@ export const EMPTY_CUSTOMER_PROFILE: CustomerProfileData = {
 export const EMPTY_PORTFOLIO: PortfolioData = {
   links: [""],
   skills: [],
+};
+
+// Saved fields only: browser File objects and private document URLs are never persisted here.
+export type IdentityReviewStatus = "not_submitted" | "pending" | "approved" | "rejected";
+export type OnboardingDraft = {
+  bio?: string | null; about?: string | null; companyName?: string;
+  address?: string | null; state?: string | null; district?: string | null;
+  languages?: string[]; experienceLevel?: string | null;
+  categories?: { category: TaxonomyItem }[]; skills?: { skill: TaxonomyItem }[];
+  portfolioItems?: { url: string }[];
+  identityDocumentReview?: { status: IdentityReviewStatus };
 };

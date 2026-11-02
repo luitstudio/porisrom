@@ -32,7 +32,20 @@ describe("company discovery search", () => {
     await service.searchCompanies({ keyword: "studio" });
 
     expect(findMany.mock.calls[0]?.[0].where.verificationStatus).toBe("approved");
+    expect(findMany.mock.calls[0]?.[0].where.user).toEqual({ role: "client", status: "active" });
     expect(count.mock.calls[0]?.[0].where.verificationStatus).toBe("approved");
+    expect(count.mock.calls[0]?.[0].where.user).toEqual({ role: "client", status: "active" });
+  });
+
+  it("normalizes punctuation and whitespace into searchable terms", async () => {
+    const { service, findMany } = createSearchService();
+    await service.searchCompanies({ keyword: "  media-studio, assam  " });
+
+    const where = findMany.mock.calls[0]?.[0].where;
+    expect(where.OR).toBeUndefined();
+    expect(where.AND).toHaveLength(3);
+    expect(where.AND.map((branch: { OR: Array<{ companyName: { contains: string } }> }) => branch.OR[0].companyName.contains))
+      .toEqual(["media", "studio", "assam"]);
   });
 
   it("combines a partial keyword with category, state, verified-only, and pagination", async () => {
@@ -60,5 +73,16 @@ describe("company discovery search", () => {
       }),
     );
     expect(count.mock.calls[0]?.[0].where).toEqual(expect.objectContaining({ OR: expect.any(Array) }));
+  });
+
+  it("uses deterministic ranking after reputation ordering", async () => {
+    const { service, findMany } = createSearchService();
+    await service.searchCompanies({});
+
+    expect(findMany.mock.calls[0]?.[0].orderBy).toEqual([
+      { ratingAvg: "desc" },
+      { ratingCount: "desc" },
+      { id: "asc" },
+    ]);
   });
 });

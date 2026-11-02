@@ -1,5 +1,6 @@
 import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 
+import { assertMarketplaceWritable, hasParticipantBlock, isActiveMarketplacePair } from "../marketplace-access";
 import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 
@@ -43,6 +44,7 @@ export class ConversationsService {
         ? conversation.connection.receiverId
         : conversation.connection.requesterId;
     const result = await this.prisma.db.$transaction(async (tx) => {
+      await assertMarketplaceWritable(tx, conversation.connection);
       const created = await tx.message.create({
         data: { conversationId, senderId: userId, body },
       });
@@ -58,6 +60,15 @@ export class ConversationsService {
     void this.realtimeGateway.emitMessageCreated(result.message);
     this.realtimeGateway.emitNotificationCreated(result.notification);
     return result.message;
+  }
+
+  async access(userId: string, conversationId: string) {
+    const conversation = await this.assertParticipant(userId, conversationId);
+    const users = await this.prisma.db.user.findMany({
+      where: { id: { in: [conversation.connection.requesterId, conversation.connection.receiverId] } },
+      select: { role: true, status: true },
+    });
+    return { readOnly: !isActiveMarketplacePair(users) || await hasParticipantBlock(this.prisma.db, conversation.connection) };
   }
 
   private async assertParticipant(userId: string, conversationId: string) {

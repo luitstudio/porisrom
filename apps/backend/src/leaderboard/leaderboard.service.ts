@@ -11,7 +11,7 @@ export class LeaderboardService {
 
   listFreelancers(minRatingCount = DEFAULT_MIN_RATING_COUNT) {
     return this.prisma.db.freelancerProfile.findMany({
-      where: { verificationStatus: "approved", ratingCount: { gte: minRatingCount } },
+      where: { verificationStatus: "approved", user: { role: "freelancer", status: "active" }, ratingCount: { gte: minRatingCount } },
       select: {
         id: true,
         ratingAvg: true,
@@ -27,7 +27,7 @@ export class LeaderboardService {
 
   listCompanies(minRatingCount = DEFAULT_MIN_RATING_COUNT) {
     return this.prisma.db.companyProfile.findMany({
-      where: { verificationStatus: "approved", ratingCount: { gte: minRatingCount } },
+      where: { verificationStatus: "approved", user: { role: "client", status: "active" }, ratingCount: { gte: minRatingCount } },
       select: {
         id: true,
         companyName: true,

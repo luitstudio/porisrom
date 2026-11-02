@@ -1,13 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { Award, Briefcase, FileText, Languages, MapPin, Save } from "lucide-react";
+import { Award, Briefcase, Camera, FileText, Languages, MapPin, Save } from "lucide-react";
 
 import {
   updateFreelancerProfileAction,
+  uploadFreelancerProfilePhotoAction,
   type UpdateFreelancerProfileInput,
 } from "@/app/dashboard/freelancer/settings/actions";
 import type { FreelancerOwnerProfile } from "@/app/dashboard/freelancer/settings/page";
+import { AvatarSelector } from "@/components/onboarding/avatar-uploader";
 import { BentoCard } from "@/components/onboarding/bento-card";
 import { MultiSelectTags } from "@/components/onboarding/multi-select-tags";
 import { Button } from "@/components/ui/button";
@@ -59,6 +61,8 @@ export function FreelancerProfileForm({ profile, categories, skills }: Freelance
     skillIds: profile.skills.map(({ skill }) => skill.id),
   });
   const [message, setMessage] = React.useState<{ kind: "success" | "error"; text: string } | null>(null);
+  const [photoFile, setPhotoFile] = React.useState<File | null>(null);
+  const [savedPhotoUrl, setSavedPhotoUrl] = React.useState(profile.profilePhotoUrl);
   const [pending, startTransition] = React.useTransition();
 
   const categoryLabels = Object.fromEntries(categories.map(({ id, name }) => [id, name]));
@@ -74,11 +78,24 @@ export function FreelancerProfileForm({ profile, categories, skills }: Freelance
     setMessage(null);
     startTransition(async () => {
       const result = await updateFreelancerProfileAction(form);
-      setMessage(
-        result.success
-          ? { kind: "success", text: "Your profile has been updated." }
-          : { kind: "error", text: result.error },
-      );
+      if (!result.success) {
+        setMessage({ kind: "error", text: result.error });
+        return;
+      }
+
+      if (photoFile) {
+        const photoForm = new FormData();
+        photoForm.set("photo", photoFile);
+        const photoResult = await uploadFreelancerProfilePhotoAction(photoForm);
+        if (!photoResult.success) {
+          setMessage({ kind: "error", text: photoResult.error });
+          return;
+        }
+        setSavedPhotoUrl(photoResult.profilePhotoUrl);
+        setPhotoFile(null);
+      }
+
+      setMessage({ kind: "success", text: "Your profile has been updated." });
     });
   }
 
@@ -108,6 +125,17 @@ export function FreelancerProfileForm({ profile, categories, skills }: Freelance
               rows={6}
               value={form.bio}
               onChange={(event) => patch({ bio: event.target.value })}
+            />
+          </BentoCard>
+
+          <BentoCard title="Profile photo" icon={Camera} className={settingsCard}>
+            <AvatarSelector
+              value={photoFile}
+              previewUrl={savedPhotoUrl}
+              onPhotoChange={(file) => {
+                setPhotoFile(file);
+                setMessage(null);
+              }}
             />
           </BentoCard>
 

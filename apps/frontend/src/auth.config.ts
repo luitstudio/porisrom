@@ -1,30 +1,41 @@
 import type { JWT } from "next-auth/jwt";
 import type { NextAuthConfig } from "next-auth";
 
-import { backendFetch } from "@/lib/backend-api";
+import { backendFetch, BackendApiError } from "@/lib/backend-api";
+import { createRefreshCoordinator } from "@/lib/refresh-coordinator";
+
+const coordinateRefresh = createRefreshCoordinator<{ accessToken: string; refreshToken: string }>();
 
 const ACCESS_TOKEN_LIFETIME_MS = 15 * 60 * 1000; // matches backend JWT_ACCESS_EXPIRES_IN
+function accessExpiry(token: string) {
+  try {
+    const payload = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString());
+    if (typeof payload.exp === "number") return payload.exp * 1000;
+  } catch { /* Synthetic/legacy responses use the existing fallback. */ }
+  return Date.now() + ACCESS_TOKEN_LIFETIME_MS;
+}
 
 async function refreshAccessToken(token: JWT): Promise<JWT> {
   try {
-    const result = await backendFetch<{ accessToken: string; refreshToken: string }>(
+    const result = await coordinateRefresh(token.refreshToken, () => backendFetch<{ accessToken: string; refreshToken: string }>(
       "/auth/refresh",
       { method: "POST", body: { refreshToken: token.refreshToken } },
-    );
+    ));
 
     return {
       ...token,
       accessToken: result.accessToken,
       refreshToken: result.refreshToken,
-      accessTokenExpires: Date.now() + ACCESS_TOKEN_LIFETIME_MS,
+      accessTokenExpires: accessExpiry(result.accessToken),
       error: undefined,
     };
-  } catch {
+  } catch (error) {
+    if (error instanceof BackendApiError && error.status === 409) return { ...token, error: "RefreshPending" };
     return { ...token, error: "RefreshFailed" };
   }
 }
 
-export const authConfig: NextAuthConfig = {
+export function createAuthConfig(allowRefresh = true): NextAuthConfig { return {
   pages: {
     signIn: "/auth/login",
   },
@@ -40,7 +51,7 @@ export const authConfig: NextAuthConfig = {
         token.isOnboarded = user.isOnboarded as boolean;
         token.accessToken = user.accessToken as string;
         token.refreshToken = user.refreshToken as string;
-        token.accessTokenExpires = Date.now() + ACCESS_TOKEN_LIFETIME_MS;
+        token.accessTokenExpires = accessExpiry(user.accessToken as string);
       }
 
       if (trigger === "update" && session) {
@@ -52,10 +63,11 @@ export const authConfig: NextAuthConfig = {
         if (update.isOnboarded !== undefined) token.isOnboarded = update.isOnboarded;
       }
 
-      if (token.accessTokenExpires && Date.now() < token.accessTokenExpires) {
+      if (token.accessTokenExpires && Date.now() < token.accessTokenExpires - (allowRefresh ? 30000 : 0)) {
         return token;
       }
 
+      if (!allowRefresh) return { ...token, error: "RefreshPending" };
       return refreshAccessToken(token);
     },
     async session({ session, token }) {
@@ -67,4 +79,6 @@ export const authConfig: NextAuthConfig = {
       return session;
     },
   },
-};
+}; }
+
+export const authConfig = createAuthConfig();
