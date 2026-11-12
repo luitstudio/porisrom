@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
 import { FreelancerProfileForm } from "@/components/dashboard/freelancer/freelancer-profile-form";
+import { GoogleLinkSettingsCard } from "@/components/auth/google-link-settings-card";
 import { backendFetch } from "@/lib/backend-api";
 import type { TaxonomyItem } from "@/lib/onboarding-types";
 
@@ -24,7 +25,8 @@ export type FreelancerOwnerProfile = {
   user: { id: string; name: string };
 };
 
-export default async function SettingsPage() {
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ googleLink?: string }> }) {
+  const { googleLink } = await searchParams;
   const session = await auth();
   if (!session?.accessToken) redirect("/auth/login");
   if (session.user.role !== "freelancer") redirect("/dashboard/client");
@@ -60,11 +62,5 @@ export default async function SettingsPage() {
     );
   }
 
-  return (
-    <FreelancerProfileForm
-      profile={data.profile}
-      categories={data.categories}
-      skills={data.skills}
-    />
-  );
+  return <><FreelancerProfileForm profile={data.profile} categories={data.categories} skills={data.skills} /><div className="mx-auto max-w-5xl px-4 pb-8 sm:px-6 lg:px-8"><GoogleLinkSettingsCard result={googleLink} /></div></>;
 }

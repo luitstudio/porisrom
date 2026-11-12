@@ -15,6 +15,7 @@ export default function SignupPage() {
       <AuthScreen
         title="Create your account"
         description="Join India's fastest growing freelancer marketplace."
+        showSocial={false}
         footer={
           <>
             Already have an account?{" "}

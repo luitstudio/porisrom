@@ -1,11 +1,9 @@
+"use client";
+
+import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useAuthPending } from "@/components/auth/auth-pending-state";
-
-const PROVIDERS = [
-  { label: "Google", icon: GoogleIcon },
-  { label: "Apple", icon: AppleIcon },
-];
 
 export function SocialLoginButtons({ disabled = false }: { disabled?: boolean }) {
   const { isPending } = useAuthPending();
@@ -14,20 +12,10 @@ export function SocialLoginButtons({ disabled = false }: { disabled?: boolean })
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2.5">
-        {PROVIDERS.map(({ label, icon: Icon }) => (
-          <Button
-            key={label}
-            type="button"
-            variant="outline"
-            disabled
-            title="Coming soon"
-            aria-label={`Continue with ${label} (coming soon)`}
-            className={`h-12 w-full justify-center gap-2 rounded-xl text-sm transition-opacity ${isDisabled ? "opacity-45" : ""}`}
-          >
-            <Icon className="size-4" />
-            <span className="truncate">Continue with {label}</span>
-          </Button>
-        ))}
+        <Button type="button" variant="outline" disabled={isDisabled} onClick={() => signIn("google", { redirectTo: "/dashboard" })} aria-label="Continue with Google" className={`h-12 w-full justify-center gap-2 rounded-xl text-sm transition-opacity ${isDisabled ? "opacity-45" : ""}`}>
+          <GoogleIcon className="size-4" />
+          <span className="truncate">Continue with Google</span>
+        </Button>
       </div>
 
       <div className="flex items-center gap-3">

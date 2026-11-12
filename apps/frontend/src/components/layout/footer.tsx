@@ -32,7 +32,7 @@ const SOCIAL_LINKS = [
 const LEGAL_DOCUMENTS = [
   { label: "FAQs" },
   { label: "Terms & Conditions", href: "/terms" },
-  { label: "Privacy Policy" },
+  { label: "Privacy Policy", href: "/terms#privacy-data-protection" },
 ];
 
 type FooterLink = {

@@ -18,6 +18,7 @@ type DesktopAuthLayoutProps = {
   description: string;
   footer: React.ReactNode;
   children: React.ReactNode;
+  showSocial?: boolean;
 };
 
 export function DesktopAuthLayout({
@@ -25,6 +26,7 @@ export function DesktopAuthLayout({
   description,
   footer,
   children,
+  showSocial = true,
 }: DesktopAuthLayoutProps) {
   const router = useRouter();
   const prefersReducedMotion = useReducedMotion();
@@ -62,7 +64,7 @@ export function DesktopAuthLayout({
                 className="mx-auto flex w-full max-w-[410px] flex-1 flex-col justify-center gap-6"
               >
                 <AuthHeader title={title} description={description} />
-                <SocialLoginButtons />
+                {showSocial && <SocialLoginButtons />}
                 {children}
                 <AuthFooter>{footer}</AuthFooter>
               </motion.div>

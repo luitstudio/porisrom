@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
 import { CompanyProfileForm } from "@/components/dashboard/company-profile-form";
+import { GoogleLinkSettingsCard } from "@/components/auth/google-link-settings-card";
 import { backendFetch } from "@/lib/backend-api";
 import type { TaxonomyItem } from "@/lib/onboarding-types";
 
@@ -26,7 +27,8 @@ export type CompanyOwnerProfile = {
   categories: { category: TaxonomyItem }[];
 };
 
-export default async function CompanySettingsPage() {
+export default async function CompanySettingsPage({ searchParams }: { searchParams: Promise<{ googleLink?: string }> }) {
+  const { googleLink } = await searchParams;
   const session = await auth();
   if (!session?.accessToken) redirect("/auth/login");
   if (session.user.role !== "client") redirect("/dashboard/freelancer");
@@ -53,5 +55,5 @@ export default async function CompanySettingsPage() {
     );
   }
 
-  return <CompanyProfileForm profile={data.profile} categories={data.categories} />;
+  return <><CompanyProfileForm profile={data.profile} categories={data.categories} /><div className="mx-auto max-w-5xl px-4 pb-8 sm:px-6 lg:px-8"><GoogleLinkSettingsCard result={googleLink} /></div></>;
 }

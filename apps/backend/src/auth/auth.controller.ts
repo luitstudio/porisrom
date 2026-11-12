@@ -16,6 +16,7 @@ import { CurrentUser, type CurrentUserPayload } from "./decorators/current-user.
 import { LoginDto } from "./dto/login.dto";
 import { RefreshDto } from "./dto/refresh.dto";
 import { SignupDto } from "./dto/signup.dto";
+import { GoogleAuthDto, GoogleLinkDto, GoogleSignupIntentDto } from "./dto/google-auth.dto";
 import { AuthRateLimitGuard } from "./guards/auth-rate-limit.guard";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 
@@ -41,6 +42,36 @@ export class AuthController {
     const result = await this.authService.login(dto);
     this.setAuthCookies(res, result);
     return result;
+  }
+
+  @Post("google/signup-intent")
+  @HttpCode(200)
+  @UseGuards(AuthRateLimitGuard)
+  googleSignupIntent(@Body() dto: GoogleSignupIntentDto) {
+    return this.authService.createGoogleSignupIntent(dto);
+  }
+
+  @Post("google")
+  @HttpCode(200)
+  @UseGuards(AuthRateLimitGuard)
+  async google(@Body() dto: GoogleAuthDto, @Res({ passthrough: true }) res: Response) {
+    const result = await this.authService.googleAuthenticate(dto);
+    this.setAuthCookies(res, result);
+    return result;
+  }
+
+  @Post("google/link")
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  linkGoogle(@CurrentUser() user: CurrentUserPayload, @Body() dto: GoogleLinkDto) {
+    return this.authService.linkGoogleIdentityWithIntent(user, dto);
+  }
+
+  @Post("google/link-intent")
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  createGoogleLinkIntent(@CurrentUser() user: CurrentUserPayload) {
+    return this.authService.createGoogleLinkIntent(user);
   }
 
   @Post("refresh")

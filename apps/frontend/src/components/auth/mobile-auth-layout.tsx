@@ -14,6 +14,7 @@ type MobileAuthLayoutProps = {
   description: string;
   footer: React.ReactNode;
   children: React.ReactNode;
+  showSocial?: boolean;
 };
 
 export function MobileAuthLayout({
@@ -21,6 +22,7 @@ export function MobileAuthLayout({
   description,
   footer,
   children,
+  showSocial = true,
 }: MobileAuthLayoutProps) {
   const { isPending } = useAuthPending();
   const prefersReducedMotion = useReducedMotion();
@@ -47,7 +49,7 @@ export function MobileAuthLayout({
             className="flex flex-col gap-6"
           >
             <AuthHeader title={title} description={description} />
-            <SocialLoginButtons />
+            {showSocial && <SocialLoginButtons />}
             {children}
             <AuthFooter>{footer}</AuthFooter>
           </motion.div>

@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { AuthError } from "next-auth";
 import { z } from "zod";
 
@@ -17,6 +18,7 @@ const signupSchema = z.object({
   email: z.string().trim().toLowerCase().email("Enter a valid email address."),
   password: z.string().min(8, "Password must be at least 8 characters."),
   role: z.enum(["freelancer", "client"], { message: "Choose an account type." }),
+  acceptedTerms: z.literal(true, { error: "Accept the Terms of Service and Privacy Policy to continue." }),
 });
 
 const loginSchema = z.object({
@@ -33,6 +35,7 @@ export async function signupAction(
     email: formData.get("email"),
     password: formData.get("password"),
     role: formData.get("role"),
+    acceptedTerms: formData.get("acceptedTerms") === "true",
   });
 
   if (!parsed.success) {
@@ -54,7 +57,7 @@ export async function signupAction(
   try {
     signupSession = await backendFetch("/auth/signup", {
       method: "POST",
-      body: { name, email, password, role },
+      body: { name, email, password, role, acceptedTerms: true },
     });
   } catch (error) {
     if (error instanceof BackendApiError) {
@@ -116,4 +119,30 @@ export async function loginAction(
   // Credentials performs the single backend login. Dashboard routing already
   // checks role and onboarding; a preflight login would leave an orphan session.
   redirect("/dashboard");
+}
+
+export async function googleSignupAction(formData: FormData) {
+  const parsed = signupSchema.pick({ role: true, acceptedTerms: true }).safeParse({
+    role: formData.get("role"),
+    acceptedTerms: formData.get("acceptedTerms") === "true",
+  });
+  if (!parsed.success) redirect("/auth/signup?error=terms-required");
+
+  try {
+    const { signupIntent } = await backendFetch<{ signupIntent: string }>("/auth/google/signup-intent", {
+      method: "POST",
+      body: { role: parsed.data.role, acceptedTerms: true },
+    });
+    const cookieStore = await cookies();
+    cookieStore.set("porisrom_google_signup_intent", signupIntent, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 10 * 60,
+      path: "/",
+    });
+  } catch {
+    redirect("/auth/signup?error=google-unavailable");
+  }
+  await signIn("google", { redirectTo: "/onboarding" });
 }

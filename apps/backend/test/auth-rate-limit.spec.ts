@@ -31,6 +31,8 @@ describe("auth rate limiting", () => {
   it.each([
     ["/signup", { email: "person@example.com" }, 5],
     ["/login", { email: "person@example.com" }, 10],
+    ["/google", {}, 10],
+    ["/google/signup-intent", {}, 5],
     ["/refresh", { refreshToken: "refresh-token" }, 30],
   ] as const)("limits %s after its configured allowance", (path, body, allowance) => {
     const guard = new AuthRateLimitGuard();
@@ -93,6 +95,7 @@ describe("existing auth behavior", () => {
         email: "new@example.com",
         password: "valid-pass",
         role: "client",
+        acceptedTerms: true,
       }),
     ).resolves.toMatchObject({
       user: { id: "user-1", email: "new@example.com", role: "client" },

@@ -7,7 +7,7 @@ import { signIn } from "@/auth";
 import { backendFetch } from "@/lib/backend-api";
 import { AuthError } from "next-auth";
 import { loginAction, signupAction } from "../src/app/auth/actions";
-function form() { const data = new FormData(); for (const [key, value] of Object.entries({ email: "synthetic@example.test", password: "Synthetic-test-only!", name: "Synthetic User", role: "client" })) data.set(key, value); return data; }
+function form() { const data = new FormData(); for (const [key, value] of Object.entries({ email: "synthetic@example.test", password: "Synthetic-test-only!", name: "Synthetic User", role: "client", acceptedTerms: "true" })) data.set(key, value); return data; }
 beforeEach(() => { vi.clearAllMocks(); });
 describe("marketplace login session ownership", () => {
   it("logs in only through Credentials without issuing a discarded preflight session", async () => {
@@ -18,6 +18,11 @@ describe("marketplace login session ownership", () => {
   it("does not authenticate invalid form data", async () => {
     const data = form(); data.set("email", "invalid");
     expect((await loginAction({}, data)).error).toBeTruthy(); expect(signIn).not.toHaveBeenCalled();
+  });
+  it("does not submit signup without affirmative legal consent", async () => {
+    const data = form(); data.set("acceptedTerms", "false");
+    expect((await signupAction({}, data)).error).toContain("review");
+    expect(backendFetch).not.toHaveBeenCalled();
   });
   it("reports rejected credentials without a second backend login", async () => {
     signIn.mockRejectedValueOnce(new AuthError("Synthetic credential rejection"));
