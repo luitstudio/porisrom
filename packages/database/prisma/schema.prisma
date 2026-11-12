@@ -26,6 +26,10 @@ enum AccountStatus {
   deleted
 }
 
+enum ExternalIdentityProvider {
+  google
+}
+
 model User {
   id                  String        @id @default(cuid())
   name                String
@@ -33,6 +37,10 @@ model User {
   passwordHash        String
   role                Role?
   status              AccountStatus @default(active)
+  termsAcceptedAt     DateTime?
+  termsVersion        String?
+  privacyPolicyAcceptedAt DateTime?
+  privacyPolicyVersion    String?
   isOnboarded         Boolean       @default(false)
   profileCompleteness Int           @default(0)
   createdAt           DateTime      @default(now())
@@ -41,7 +49,9 @@ model User {
   freelancerProfile FreelancerProfile?
   companyProfile    CompanyProfile?
 
-  authSessions AuthSession[]
+  authSessions        AuthSession[]
+  externalIdentities ExternalIdentity[]
+  googleLinkIntents  GoogleLinkIntent[]
 
   connectionsSent     Connection[] @relation("ConnectionRequester")
   connectionsReceived Connection[] @relation("ConnectionReceiver")
@@ -54,6 +64,34 @@ model User {
   safetyCasesTargeted SafetyCase[] @relation("SafetyTarget")
   safetyCaseEvents    SafetyCaseEvent[]
   notificationReadStates NotificationReadState[]
+}
+
+model ExternalIdentity {
+  id              String                   @id @default(cuid())
+  userId          String
+  user            User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider        ExternalIdentityProvider
+  providerSubject String
+  emailAtLink     String
+  emailVerifiedAt DateTime
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+
+  @@unique([provider, providerSubject])
+  @@index([userId])
+}
+
+model GoogleLinkIntent {
+  nonce     String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionId String
+  expiresAt DateTime
+  consumedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId, sessionId])
+  @@index([expiresAt])
 }
 
 model AuthSession {
