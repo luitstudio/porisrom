@@ -24,6 +24,7 @@ type BackendFetchOptions = {
   method?: "GET" | "POST" | "PATCH" | "DELETE";
   body?: unknown;
   accessToken?: string;
+  signal?: AbortSignal;
 };
 
 function extractMessage(data: unknown): string {
@@ -47,6 +48,7 @@ export async function backendFetch<T = unknown>(
     },
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
     cache: "no-store",
+    signal: options.signal,
   });
 
   const data = await res.json().catch(() => null);
