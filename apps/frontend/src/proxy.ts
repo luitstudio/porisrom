@@ -43,23 +43,28 @@ const authenticatedProxy = auth(async (req) => {
     return NextResponse.redirect(new URL(target, nextUrl));
   }
 
-  if (isDashboardPage && role === "admin") {
-    return NextResponse.redirect(new URL("/", nextUrl));
-  }
-
-  if (isDashboardPage && !isOnboarded) {
-    return NextResponse.redirect(new URL("/onboarding", nextUrl));
-  }
-
   if (isDashboardPage) {
-    const expectedDashboard = dashboardPathFor(role);
-    if (role === null) {
+    // The backend owns the authoritative role. This prevents a stale Auth.js
+    // JWT role from bouncing the user between the two dashboard roots.
+    let authoritative: { role: "freelancer" | "client" | "admin" | null; isOnboarded: boolean };
+    try {
+      authoritative = await backendFetch<typeof authoritative>("/auth/me", { accessToken: session.accessToken });
+    } catch {
+      // Preserve the route while the bounded server gate renders a retryable
+      // state; a transient backend failure must not force a sign-out.
+      return NextResponse.next();
+    }
+    if (authoritative.role === "admin") {
+      return NextResponse.redirect(new URL("/", nextUrl));
+    }
+    if (!authoritative.isOnboarded) {
+      return NextResponse.redirect(new URL("/onboarding", nextUrl));
+    }
+    const expectedDashboard = dashboardPathFor(authoritative.role);
+    if (authoritative.role === null) {
       return NextResponse.redirect(new URL(expectedDashboard, nextUrl));
     }
-    if (role === "client" && pathname.startsWith("/dashboard/freelancer")) {
-      return NextResponse.redirect(new URL(expectedDashboard, nextUrl));
-    }
-    if (role === "freelancer" && pathname.startsWith("/dashboard/client")) {
+    if (!pathname.startsWith(expectedDashboard)) {
       return NextResponse.redirect(new URL(expectedDashboard, nextUrl));
     }
   }

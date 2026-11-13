@@ -1,4 +1,4 @@
-import { IsEmail, IsIn, MinLength } from "class-validator";
+import { IsBoolean, IsEmail, IsIn, MinLength } from "class-validator";
 
 export class SignupDto {
   @MinLength(1)
@@ -12,4 +12,7 @@ export class SignupDto {
 
   @IsIn(["freelancer", "client"])
   role!: "freelancer" | "client";
+
+  @IsBoolean()
+  acceptedTerms!: boolean;
 }

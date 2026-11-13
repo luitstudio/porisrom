@@ -28,16 +28,17 @@ type AuthScreenProps = {
   description: string;
   footer: React.ReactNode;
   children: React.ReactNode;
+  showSocial?: boolean;
 };
 
-export function AuthScreen({ title, description, footer, children }: AuthScreenProps) {
+export function AuthScreen({ title, description, footer, children, showSocial = true }: AuthScreenProps) {
   const isDesktop = useIsDesktop();
 
   if (isDesktop) {
     return (
       <AuthPendingProvider>
         <DecorativeHomepageBackdrop />
-        <DesktopAuthLayout title={title} description={description} footer={footer}>
+        <DesktopAuthLayout title={title} description={description} footer={footer} showSocial={showSocial}>
           {children}
         </DesktopAuthLayout>
       </AuthPendingProvider>
@@ -46,7 +47,7 @@ export function AuthScreen({ title, description, footer, children }: AuthScreenP
 
   return (
     <AuthPendingProvider>
-      <MobileAuthLayout title={title} description={description} footer={footer}>
+      <MobileAuthLayout title={title} description={description} footer={footer} showSocial={showSocial}>
         {children}
       </MobileAuthLayout>
     </AuthPendingProvider>

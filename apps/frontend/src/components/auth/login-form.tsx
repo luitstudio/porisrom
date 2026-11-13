@@ -47,7 +47,7 @@ export function LoginForm() {
   return (
     <motion.form
       action={formAction}
-      autoComplete="off"
+      autoComplete="on"
       aria-busy={isPending}
       animate={
         !prefersReducedMotion && state.error
@@ -89,7 +89,7 @@ export function LoginForm() {
             id="password"
             name="password"
             type={showPassword ? "text" : "password"}
-            autoComplete="new-password"
+            autoComplete="current-password"
             placeholder="Enter your password"
             disabled={isPending}
             required

@@ -18,6 +18,7 @@ build/
 
 # logs
 *.log
+**/.local-diagnostics/
 npm-debug.log*
 pnpm-debug.log*
 

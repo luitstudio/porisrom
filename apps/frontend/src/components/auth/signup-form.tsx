@@ -6,7 +6,7 @@ import { useActionState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, BriefcaseBusiness, Check, Eye, EyeOff, UserRound } from "lucide-react";
 
-import { signupAction, type AuthActionState } from "@/app/auth/actions";
+import { googleSignupAction, signupAction, type AuthActionState } from "@/app/auth/actions";
 import { Button } from "@/components/ui/button";
 import {
   InputGroup,
@@ -253,6 +253,7 @@ export function SignupForm() {
       <label
         className={`flex min-h-14 items-start gap-3 rounded-xl border p-3.5 outline-none transition-colors focus-within:ring-3 focus-within:ring-ring/50 ${visibleErrors.terms ? "border-destructive bg-destructive/5" : "border-transparent bg-accent"} ${isPending ? "cursor-progress opacity-75" : "cursor-pointer"}`}
       >
+        <input type="hidden" name="acceptedTerms" value={acceptedTerms ? "true" : "false"} />
         <Checkbox
           checked={acceptedTerms}
           onCheckedChange={(checked) => {
@@ -294,6 +295,16 @@ export function SignupForm() {
           <AlertDescription>{state.error}</AlertDescription>
         </Alert>
       )}
+
+      <Button
+        type="submit"
+        formAction={googleSignupAction}
+        variant="outline"
+        disabled={isPending || !acceptedTerms}
+        className="h-12 w-full rounded-xl"
+      >
+        Continue with Google
+      </Button>
 
       <motion.div whileHover={{ scale: 1.01, y: -1 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.2 }}>
         <Button

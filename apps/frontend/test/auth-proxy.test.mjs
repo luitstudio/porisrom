@@ -13,7 +13,7 @@ import { backendFetch } from "@/lib/backend-api";
 beforeEach(() => {
   state.session = { user: { role: "client", isOnboarded: true }, accessToken: "synthetic-new" };
   state.cookie = "authjs.session-token=synthetic-new; Path=/; HttpOnly";
-  vi.mocked(backendFetch).mockResolvedValue({});
+  vi.mocked(backendFetch).mockResolvedValue({ role: "client", isOnboarded: true });
 });
 
 it("forwards the refreshed cookie to read-only rendering as well as the browser", async () => {
@@ -42,4 +42,11 @@ it("allows login when an otherwise unexpired cached JWT belongs to a revoked bac
   backendFetch.mockRejectedValueOnce(new Error("Unauthorized"));
   const response = await proxy(new NextRequest("https://synthetic.example/auth/login"), {});
   expect(response.headers.get("location")).toBeNull();
+});
+
+it("uses the backend role for dashboard routing when the Auth.js JWT role is stale", async () => {
+  state.session = { user: { role: "client", isOnboarded: true }, accessToken: "synthetic-new" };
+  backendFetch.mockResolvedValueOnce({ role: "freelancer", isOnboarded: true });
+  const response = await proxy(new NextRequest("https://synthetic.example/dashboard/client"), {});
+  expect(response.headers.get("location")).toBe("https://synthetic.example/dashboard/freelancer");
 });

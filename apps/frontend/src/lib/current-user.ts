@@ -15,14 +15,22 @@ function resolveProfileCompleteness(user: CurrentUser) {
   return Math.max(0, Math.min(100, user.profileCompleteness));
 }
 
-export async function getCurrentUser(): Promise<CurrentUser | null> {
-  const session = await auth();
-  if (!session?.accessToken) return null;
+export type CurrentUserOptions = { signal?: AbortSignal; throwOnFailure?: boolean };
 
+export type CurrentUserContext = { user: CurrentUser | null; accessToken: string | null };
+
+export async function getCurrentUserContext(options: CurrentUserOptions = {}): Promise<CurrentUserContext> {
   try {
-    const user = await backendFetch<CurrentUser>("/auth/me", { accessToken: session.accessToken });
-    return { ...user, profileCompleteness: resolveProfileCompleteness(user) };
+    const session = await auth();
+    if (!session?.accessToken) return { user: null, accessToken: null };
+    const user = await backendFetch<CurrentUser>("/auth/me", { accessToken: session.accessToken, signal: options.signal });
+    return { user: { ...user, profileCompleteness: resolveProfileCompleteness(user) }, accessToken: session.accessToken };
   } catch {
-    return null;
+    if (options.throwOnFailure) throw new Error("Current user request failed");
+    return { user: null, accessToken: null };
   }
+}
+
+export async function getCurrentUser(options: CurrentUserOptions = {}): Promise<CurrentUser | null> {
+  return (await getCurrentUserContext(options)).user;
 }

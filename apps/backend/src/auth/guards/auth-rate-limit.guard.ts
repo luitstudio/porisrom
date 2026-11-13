@@ -21,6 +21,8 @@ const RULES: Record<string, RateLimitRule> = {
   logout: { limit: 30, windowMs: 5 * 60 * 1000, key: request => request.ip || "unknown" },
   signup: { limit: 5, windowMs: 15 * 60 * 1000, key: accountKey },
   login: { limit: 10, windowMs: 15 * 60 * 1000, key: accountKey },
+  google: { limit: 10, windowMs: 15 * 60 * 1000, key: request => request.ip || "unknown" },
+  "signup-intent": { limit: 5, windowMs: 15 * 60 * 1000, key: request => request.ip || "unknown" },
   refresh: { limit: 30, windowMs: 5 * 60 * 1000, key: refreshKey },
 };
 

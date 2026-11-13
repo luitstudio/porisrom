@@ -10,7 +10,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { getCurrentUser } from "@/lib/current-user";
+import { getFreelancerDashboardGate } from "@/lib/freelancer-dashboard-user";
 
 const ACTIONS = [
   ["Messages & connections", "Client requests and conversations", "/dashboard/freelancer/messages", MessageSquare],
@@ -38,7 +38,7 @@ async function withDashboardTimeout<T>(request: Promise<T>, fallback: T): Promis
 }
 
 export default async function FreelancerDashboardPage() {
-  const user = await getCurrentUser();
+  const { user } = await getFreelancerDashboardGate();
   if (!user) redirect("/auth/login");
   const [connectionResult, conversationResult, financial, reviews] = await Promise.all([
     withDashboardTimeout(listConnectionsAction(), null), withDashboardTimeout(listConversationsAction(), null), withDashboardTimeout(getFinancialHistoryAction(), null), withDashboardTimeout(getFreelancerReviewDashboardAction(), null),
