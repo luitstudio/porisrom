@@ -43,7 +43,9 @@ services:
     build: { context: .., target: backend }
     environment: *api-environment
     ports: ["127.0.0.1:4400:4000"]
-    volumes: [staging_public_assets:/app/runtime/public]
+    volumes:
+      - staging_public_assets:/app/runtime/public
+      - staging_private_documents:/app/runtime/private
     depends_on: { postgres: { condition: service_healthy } }
     restart: unless-stopped
     init: true
@@ -90,3 +92,4 @@ services:
 volumes:
   staging_postgres_18:
   staging_public_assets:
+  staging_private_documents:
