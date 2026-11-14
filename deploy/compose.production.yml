@@ -1,0 +1,150 @@
+# Hostinger VPS production stack. Caddy remains the only public HTTPS listener.
+name: porisrom-production
+
+x-api-environment: &api-environment
+  NODE_ENV: production
+  DATABASE_URL: ${DATABASE_URL:?Supply the private production PostgreSQL URL for the Compose postgres service}
+  JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?Supply the production JWT access secret}
+  JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Supply a distinct production JWT refresh secret}
+  FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:?Supply the exact HTTPS marketplace and admin origins}
+  BACKEND_PUBLIC_URL: ${BACKEND_PUBLIC_URL:?Supply the HTTPS API origin}
+  CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:?Supply the production Cloudinary cloud name}
+  CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:?Supply the production Cloudinary API key}
+  CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:?Supply the production Cloudinary API secret}
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?Supply the production Google OAuth client ID}
+  SOCKET_ADAPTER: ${SOCKET_ADAPTER:-postgres}
+  SOCKET_CHANNEL_PREFIX: ${SOCKET_CHANNEL_PREFIX:?Supply a production-specific realtime channel prefix}
+  REALTIME_EXPECTED_INSTANCES: ${REALTIME_EXPECTED_INSTANCES:-1}
+  KYC_LOCAL_FALLBACK_ENABLED: "false"
+  PROFILE_PHOTO_UPLOAD_DIR: /app/runtime/public
+  PRIVATE_DOCUMENT_UPLOAD_DIR: /app/runtime/private
+
+services:
+  postgres:
+    image: postgres:18.2-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?Supply the production database user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Supply the production database password}
+      POSTGRES_DB: ${POSTGRES_DB:?Supply the production database name}
+    volumes:
+      - production_postgres_18:/var/lib/postgresql
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 1g
+    cpus: 1.0
+
+  # Opt-in, offline configuration check. It never connects to PostgreSQL.
+  production-config-check:
+    profiles: [validation]
+    build: { context: .., target: migrate }
+    entrypoint: [node, /app/deploy/validate-production-database-url.mjs]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?Supply the private production PostgreSQL URL for the Compose postgres service}
+      POSTGRES_USER: ${POSTGRES_USER:?Supply the production database user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Supply the production database password}
+      POSTGRES_DB: ${POSTGRES_DB:?Supply the production database name}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?Supply the production Google OAuth client ID}
+      AUTH_GOOGLE_ID: ${AUTH_GOOGLE_ID:?Supply the production Google OAuth client ID}
+      AUTH_GOOGLE_SECRET: ${AUTH_GOOGLE_SECRET:?Supply the production Google OAuth client secret}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:?Supply the exact HTTPS marketplace and admin origins}
+      BACKEND_PUBLIC_URL: ${BACKEND_PUBLIC_URL:?Supply the HTTPS API origin}
+      BACKEND_URL: ${BACKEND_URL:?Supply the HTTPS API origin}
+      NEXT_PUBLIC_BACKEND_URL: ${NEXT_PUBLIC_BACKEND_URL:?Supply the HTTPS browser API origin}
+      AUTH_URL: ${AUTH_URL:?Supply the HTTPS marketplace origin}
+    restart: "no"
+    init: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 128m
+    cpus: 0.25
+    pids_limit: 64
+
+  # Opt-in only. Starting applications NEVER applies migrations automatically.
+  migrate:
+    profiles: [migration]
+    build: { context: .., target: migrate }
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?Supply the private production PostgreSQL URL for the Compose postgres service}
+    command: [migrate, deploy]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    init: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 512m
+    cpus: 0.5
+    pids_limit: 256
+
+  backend:
+    build: { context: .., target: backend }
+    environment: *api-environment
+    ports: ["127.0.0.1:4000:4000"]
+    volumes:
+      - production_public_assets:/app/runtime/public
+      - production_private_documents:/app/runtime/private
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 768m
+    cpus: 1.0
+    pids_limit: 256
+
+  frontend:
+    build:
+      context: ..
+      target: frontend
+      args:
+        BACKEND_URL: ${BACKEND_URL:?Supply the HTTPS API origin for frontend builds}
+        NEXT_PUBLIC_BACKEND_URL: ${NEXT_PUBLIC_BACKEND_URL:?Supply the HTTPS browser API origin for frontend builds}
+    environment:
+      BACKEND_URL: ${BACKEND_URL:?Supply the HTTPS API origin}
+      AUTH_SECRET: ${AUTH_SECRET:?Supply the separate production Auth.js secret}
+      AUTH_GOOGLE_ID: ${AUTH_GOOGLE_ID:?Supply the production Google OAuth client ID}
+      AUTH_GOOGLE_SECRET: ${AUTH_GOOGLE_SECRET:?Supply the production Google OAuth client secret}
+      AUTH_URL: ${AUTH_URL:?Supply the HTTPS marketplace origin}
+      AUTH_TRUST_HOST: "true"
+    ports: ["127.0.0.1:3000:3000"]
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    init: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 768m
+    cpus: 1.0
+
+  admin:
+    build:
+      context: ..
+      target: admin
+      args:
+        BACKEND_URL: ${BACKEND_URL:?Supply the HTTPS API origin for admin builds}
+    environment:
+      BACKEND_URL: ${BACKEND_URL:?Supply the HTTPS API origin}
+    ports: ["127.0.0.1:3001:3001"]
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    init: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 512m
+    cpus: 0.5
+
+volumes:
+  production_postgres_18:
+  production_public_assets:
+  production_private_documents:
