@@ -24,7 +24,27 @@ This procedure never starts Prisma migrations automatically and never prints a r
 
    Do not use the migration command without recorded database-owner approval and successful migration rehearsal.
 
-5. Start the applications only through the gate. It repeats the Compose-backed validation service before requesting PostgreSQL, backend, frontend, and admin startup. It never enables the migration profile:
+5. On a fresh production database, explicitly seed only the required taxonomy after migrations. This command sets `SEED_LAUNCH_DATA=false`, so it cannot create demo freelancer or company data:
+
+   ```text
+   docker compose --env-file /etc/porisrom/production.env --project-directory /opt/porisrom/app --file /opt/porisrom/app/deploy/compose.production.yml --profile migration run --rm --env SEED_LAUNCH_DATA=false --entrypoint node migrate dist/seed.js
+   ```
+
+   Migrations and seeding are separate operations: migrations create or update the schema and Prisma migration ledger, while this seed writes the required category and skill reference data. Do not run demo seed data in production. The explicit false flag prevents demo users and companies.
+
+   Verify the taxonomy with this approved read-only PostgreSQL query. Expected results: `categories=9` and `skills=12`.
+
+   ```sql
+   SELECT
+     (SELECT COUNT(*) FROM "Category") AS categories,
+     (SELECT COUNT(*) FROM "Skill") AS skills;
+   ```
+
+   ```text
+   docker compose --env-file /etc/porisrom/production.env --project-directory /opt/porisrom/app --file /opt/porisrom/app/deploy/compose.production.yml exec -T postgres sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT (SELECT COUNT(*) FROM \"Category\") AS categories, (SELECT COUNT(*) FROM \"Skill\") AS skills;"'
+   ```
+
+6. Start the applications only through the gate. It repeats the Compose-backed validation service before requesting PostgreSQL, backend, frontend, and admin startup. It never enables the migration profile:
 
    ```text
    node --env-file=/etc/porisrom/production.env /opt/porisrom/app/deploy/production-preflight.mjs
