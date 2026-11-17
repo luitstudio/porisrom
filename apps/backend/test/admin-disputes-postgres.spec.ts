@@ -21,6 +21,7 @@ import { RolesGuard } from "../src/auth/guards/roles.guard";
 import { AuthRateLimitGuard } from "../src/auth/guards/auth-rate-limit.guard";
 import { IdentityDocumentService } from "../src/kyc/identity-document.service";
 import { CompanyDocumentService } from "../src/profiles/company-document.service";
+import { allowStorageMutation } from "./storage-maintenance-test-double";
 import { WorkAssignmentsService } from "../src/work-assignments/work-assignments.service";
 import { PrismaService } from "../src/prisma/prisma.service";
 import { ensureSecurityUsers, SYNTHETIC_TEST_PASSWORD } from "../src/testing/security-fixture";
@@ -137,7 +138,7 @@ describe.skipIf(!testUrl)("isolated PostgreSQL admin authentication and disputes
     await admin.setBadge(users.freelancer.id, true, users.admin.id);
     await admin.broadcastNotification(users.admin.id, namespace, "Synthetic broadcast");
     await admin.sendDirectMessage(users.admin.id, users.client.id, "Synthetic direct notification");
-    await new IdentityDocumentService({ db } as never, {} as never).reviewForAdmin(users.admin.id, users.freelancer.id, "approved");
+    await new IdentityDocumentService({ db } as never, {} as never, allowStorageMutation as never).reviewForAdmin(users.admin.id, users.freelancer.id, "approved");
     const logs = await db.adminActionLog.findMany({ where: { adminId: users.admin.id } });
     expect(logs.map((log) => log.action)).toEqual(expect.arrayContaining(["approve_profile", "reject_profile", "set_badge", "broadcast_notification", "send_direct_message", "review_identity_document"]));
     await expect(admin.approveProfile(users.freelancer.id, users.client.id)).rejects.toMatchObject({ status: 403 });

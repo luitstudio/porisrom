@@ -129,6 +129,7 @@ model FreelancerProfile {
   user               User               @relation(fields: [userId], references: [id])
   bio                String?
   profilePhotoUrl    String?
+  profilePhotoStorageId String?
   address            String?
   state              String?
   district           String?
@@ -166,6 +167,7 @@ model CompanyProfile {
   user               User               @relation(fields: [userId], references: [id])
   companyName        String
   logoUrl            String?
+  logoStorageId      String?
   about              String?
   address            String?
   state              String?
@@ -275,6 +277,240 @@ model AdminActionLog {
   action       String
   metadata     Json?
   createdAt    DateTime @default(now())
+}
+
+// Singleton, durable gate for backup-safe file-storage maintenance.  It is
+// intentionally separate from general application maintenance: only storage
+// mutations participate.
+enum StorageMaintenanceMode {
+  inactive
+  draining
+  quiescent
+  recovery_required
+}
+
+enum StorageMutationKind {
+  identity_document
+  company_document
+  profile_photo
+}
+
+enum StorageMutationStatus {
+  active
+  fenced
+  completed
+  failed
+  reconciled
+}
+
+enum StorageCaptureOutcome {
+  succeeded
+  failed
+  uncertain
+}
+
+enum BackupCaptureClass {
+  daily
+  weekly
+  monthly
+}
+
+enum BackupCaptureRequestStatus {
+  pending
+  maintenance_draining
+  blocked_recovery
+  ready
+  cancelled
+}
+
+enum BackupCaptureJobStatus {
+  authorized
+  claimed
+  running
+  result_pending
+  reported
+}
+
+enum BackupCoordinatorCertificateStatus {
+  active
+  revoked
+}
+
+// A backend-process identity. It is deliberately never reused after a
+// restart; fencing this row revokes every lease issued to that process.
+model StorageMaintenanceWorker {
+  id            String   @id
+  startedAt     DateTime @default(now())
+  heartbeatAt   DateTime @default(now())
+  fenceEpoch    Int      @default(0)
+  fencedAt      DateTime?
+  fencedBy      String?
+  fencingReason String?
+  stoppedAt     DateTime?
+
+  operations StorageMaintenanceOperation[]
+}
+
+model StorageMaintenanceState {
+  id                 String                 @id
+  mode               StorageMaintenanceMode @default(inactive)
+  generation         Int                    @default(0)
+  activatedAt        DateTime?
+  activatedBy        String?
+  quiescentAt        DateTime?
+  disabledAt         DateTime?
+  disabledBy         String?
+  recoveryRequiredAt DateTime?
+  captureLeaseId     String?
+  captureGeneration  Int?
+  captureAcquiredAt  DateTime?
+  captureAcquiredBy  String?
+  captureOutcome     StorageCaptureOutcome?
+  captureOutcomeAt   DateTime?
+  captureOutcomeBy   String?
+  captureOutcomeReason String?
+  captureJobId         String?                @unique
+  captureJob           BackupCaptureJob?      @relation("ActiveStorageCaptureJob", fields: [captureJobId], references: [id], onDelete: Restrict)
+  updatedAt          DateTime               @updatedAt
+}
+
+// A request represents one authorized scheduled occurrence. It is created
+// before maintenance starts draining; it cannot itself execute a backup.
+model BackupCaptureRequest {
+  id             String                     @id @default(cuid())
+  scheduleKey    String
+  scheduledFor   DateTime
+  backupClass    BackupCaptureClass
+  status         BackupCaptureRequestStatus @default(pending)
+  requestedBy    String?
+  // Null means legacy/unassigned and is deliberately ineligible for machine work.
+  authorizedCoordinatorPrincipalId String?
+  authorizedCoordinatorPrincipal   BackupCoordinatorPrincipal? @relation("AuthorizedCaptureRequests", fields: [authorizedCoordinatorPrincipalId], references: [id], onDelete: Restrict)
+  requestedAt    DateTime                   @default(now())
+  updatedAt      DateTime                   @updatedAt
+  job            BackupCaptureJob?
+  actions        BackupCoordinatorActionLog[]
+
+  @@unique([scheduleKey, scheduledFor])
+  @@index([status, scheduledFor])
+  @@index([authorizedCoordinatorPrincipalId, status], map: "BackupCaptureRequest_authorizedCoordinatorPrincipalId_statu_idx")
+}
+
+// Created atomically with an active generation-bound capture lease. Lease
+// fields are immutable by service contract; uniqueness prevents rebinding.
+model BackupCaptureJob {
+  id                     String                 @id @default(cuid())
+  requestId              String                 @unique
+  request                BackupCaptureRequest   @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  backupClass            BackupCaptureClass
+  // Copied atomically from the request in Step 6A.2; never inferred from a certificate.
+  authorizedCoordinatorPrincipalId String?
+  authorizedCoordinatorPrincipal   BackupCoordinatorPrincipal? @relation("AuthorizedCaptureJobs", fields: [authorizedCoordinatorPrincipalId], references: [id], onDelete: Restrict)
+  leaseId                String                 @unique
+  leaseGeneration        Int
+  status                 BackupCaptureJobStatus @default(authorized)
+  authorizedAt           DateTime               @default(now())
+  claimedAt              DateTime?
+  claimedBy              String?
+  coordinatorAttemptId   String?                @unique
+  resultIdempotencyKey   String?                @unique
+  resultSetId            String?
+  resultManifestSha256   String?
+  resultOutcome          StorageCaptureOutcome?
+  resultReason           String?
+  reportedAt             DateTime?
+  activeMaintenanceState StorageMaintenanceState? @relation("ActiveStorageCaptureJob")
+  actions                BackupCoordinatorActionLog[]
+
+  @@unique([leaseId, leaseGeneration])
+  @@index([status, authorizedAt])
+  @@index([authorizedCoordinatorPrincipalId, status])
+}
+
+// Service identities are deliberately independent of application users and
+// JWTs. A reverse proxy verifies the TLS client certificate and forwards only
+// its normalized SHA-256 fingerprint to the restricted coordinator route.
+model BackupCoordinatorPrincipal {
+  id           String   @id
+  name         String
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  disabledAt   DateTime?
+  certificates BackupCoordinatorCertificate[]
+  authorizedRequests BackupCaptureRequest[] @relation("AuthorizedCaptureRequests")
+  authorizedJobs     BackupCaptureJob[]     @relation("AuthorizedCaptureJobs")
+}
+
+model BackupCoordinatorCertificate {
+  id          String                             @id @default(cuid())
+  principalId String
+  principal   BackupCoordinatorPrincipal         @relation(fields: [principalId], references: [id], onDelete: Restrict)
+  fingerprint String                             @unique
+  status      BackupCoordinatorCertificateStatus @default(active)
+  notBefore   DateTime?
+  notAfter    DateTime?
+  createdAt   DateTime                           @default(now())
+  revokedAt   DateTime?
+  revokedBy   String?
+  revokeReason String?
+
+  @@index([principalId, status])
+}
+
+// Machine/system actions are intentionally separate from AdminActionLog.
+// AdminActionLog remains the sole record for human admin authorization.
+model BackupCoordinatorActionLog {
+  id          String   @id @default(cuid())
+  principalId String
+  action      String
+  requestId   String?
+  jobId       String?
+  leaseId     String?
+  generation  Int?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  request     BackupCaptureRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  job         BackupCaptureJob?     @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  @@index([principalId, createdAt])
+  @@index([requestId])
+  @@index([jobId])
+  @@index([leaseId, createdAt])
+}
+
+model StorageMaintenanceOperation {
+  id                    String                @id @default(cuid())
+  generation            Int
+  kind                  StorageMutationKind
+  status                StorageMutationStatus @default(active)
+  startedAt             DateTime              @default(now())
+  completedAt           DateTime?
+  failureKind           String?
+  failureContext        Json?
+  reconciledAt          DateTime?
+  reconciledBy          String?
+  reconciliationReason  String?
+  reconciliationOutcome String?
+  workerId              String
+  workerFenceEpoch      Int
+  worker                StorageMaintenanceWorker @relation(fields: [workerId], references: [id], onDelete: Restrict)
+
+  @@index([status, generation])
+  @@index([workerId, status])
+}
+
+model StorageMaintenanceEvent {
+  id          String   @id @default(cuid())
+  generation  Int
+  action      String
+  operatorId  String?
+  operationId String?
+  reason      String?
+  outcome     String?
+  createdAt   DateTime @default(now())
+
+  @@index([generation, createdAt])
+  @@index([operationId])
 }
 
 enum ConnectionStatus {

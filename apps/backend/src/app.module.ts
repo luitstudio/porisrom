@@ -18,6 +18,7 @@ import { WorkAssignmentsModule } from "./work-assignments/work-assignments.modul
 import { validateProductionAuthSecrets } from "./auth/production-auth-config";
 import { validateDocumentStorageConfig } from "./document-storage";
 import { SafetyModule } from "./safety/safety.module";
+import { StorageMaintenanceModule } from "./storage-maintenance/storage-maintenance.module";
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { SafetyModule } from "./safety/safety.module";
     RealtimeModule,
     LeaderboardModule,
     NotificationsModule,
+    StorageMaintenanceModule,
   ],
   controllers: [HealthController],
 })

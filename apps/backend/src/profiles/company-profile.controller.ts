@@ -10,6 +10,7 @@ import { RolesGuard } from "../auth/guards/roles.guard";
 import { CompanyDocumentService } from "./company-document.service";
 import { CompanyProfileService } from "./company-profile.service";
 import { UpdateCompanyProfileDto } from "./dto/update-company-profile.dto";
+import { StorageMutation } from "../storage-maintenance/storage-mutation.decorator";
 
 @Controller("companies")
 export class CompanyProfileController {
@@ -38,6 +39,7 @@ export class CompanyProfileController {
   }
 
   @Post("me/logo")
+  @StorageMutation()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles("client")
   @UseInterceptors(FileInterceptor("photo", { limits: { fileSize: 2 * 1024 * 1024 + 1 } }))
@@ -53,6 +55,7 @@ export class CompanyProfileController {
   }
 
   @Post("me/documents")
+  @StorageMutation()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles("client")
   @UseInterceptors(FileFieldsInterceptor([

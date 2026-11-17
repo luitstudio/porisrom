@@ -6,6 +6,7 @@ import { randomUUID } from "crypto";
 
 import { PrismaService } from "../prisma/prisma.service";
 import { isLocalDocumentId, LocalDocumentStorage, localDocumentFallbackEnabled, storageConfig } from "../document-storage";
+import { StorageMutationCoordinator, type StorageMutationLease } from "../storage-maintenance/storage-mutation-coordinator.service";
 
 const MAX_DOCUMENT_BYTES = 1024 * 1024;
 const SIGNED_URL_TTL_SECONDS = 5 * 60;
@@ -22,6 +23,7 @@ export class IdentityDocumentService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly maintenance: StorageMutationCoordinator,
   ) {}
 
   private configuredClient() {
@@ -42,7 +44,8 @@ export class IdentityDocumentService {
     }
   }
 
-  private uploadToCloudinary(file: Express.Multer.File, publicId: string): Promise<UploadResult> {
+  private async uploadToCloudinary(lease: StorageMutationLease, file: Express.Multer.File, publicId: string): Promise<UploadResult> {
+    await lease.assertNotFenced();
     this.configuredClient();
     return new Promise((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
@@ -62,17 +65,18 @@ export class IdentityDocumentService {
     });
   }
 
-  private async uploadPdf(file: Express.Multer.File, publicId: string): Promise<StoredIdentityDocument> {
+  private async uploadPdf(lease: StorageMutationLease, file: Express.Multer.File, publicId: string): Promise<StoredIdentityDocument> {
     try {
-      const upload = await this.uploadToCloudinary(file, publicId);
+      const upload = await this.uploadToCloudinary(lease, file, publicId);
       if (upload.type !== "authenticated" || upload.resource_type !== "image" || upload.public_id !== publicId || !upload.asset_id) {
+        await lease.assertNotFenced();
         await cloudinary.uploader.destroy(publicId, { resource_type: "image", type: "authenticated", invalidate: true }).catch(() => undefined);
         throw new ServiceUnavailableException("Identity document storage could not be secured");
       }
       return { publicId, assetId: upload.asset_id, storage: "cloudinary" };
     } catch (error) {
       if (this.localFallbackEnabled()) {
-        return this.storeLocally(publicId, file);
+        return this.storeLocally(lease, publicId, file);
       }
       if (error instanceof ServiceUnavailableException) throw error;
       throw new ServiceUnavailableException(this.storageFailureMessage(error));
@@ -100,13 +104,14 @@ export class IdentityDocumentService {
     );
   }
 
-  private async storeLocally(publicId: string, file: Express.Multer.File): Promise<StoredIdentityDocument> {
+  private async storeLocally(lease: StorageMutationLease, publicId: string, file: Express.Multer.File): Promise<StoredIdentityDocument> {
     const safePublicId = publicId
       .split("/")
       .map((part) => part.replace(/[^a-zA-Z0-9_-]/g, "-"))
       .filter(Boolean)
       .join("/");
     const relativePath = `kyc-documents/${safePublicId}.pdf`;
+    await lease.assertNotFenced();
     const storedId = await this.localStorage().write(relativePath, file.buffer);
     return {
       publicId: storedId,
@@ -123,15 +128,21 @@ export class IdentityDocumentService {
     return `${this.publicBaseUrl()}/admin/users/${encodeURIComponent(userId)}/identity-document/file`;
   }
 
-  private async destroyStoredDocument(publicId: string) {
+  private async destroyStoredDocument(lease: StorageMutationLease, publicId: string) {
     if (this.isLocalPublicId(publicId)) {
+      await lease.assertNotFenced();
       await this.localStorage().remove(publicId).catch(() => undefined);
       return;
     }
+    await lease.assertNotFenced();
     await cloudinary.uploader.destroy(publicId, { resource_type: "image", type: "authenticated", invalidate: true });
   }
 
   async uploadForFreelancer(userId: string, file: Express.Multer.File | undefined) {
+    return this.maintenance.run("identity_document", lease => this.uploadForFreelancerUnchecked(lease, userId, file));
+  }
+
+  private async uploadForFreelancerUnchecked(lease: StorageMutationLease, userId: string, file: Express.Multer.File | undefined) {
     this.validatePdf(file);
     const profile = await this.prisma.db.freelancerProfile.findUnique({ where: { userId }, select: { id: true } });
     if (!profile) throw new NotFoundException("Complete your freelancer profile before submitting an identity document");
@@ -143,7 +154,7 @@ export class IdentityDocumentService {
     const replacedDocument = existing?.status === "rejected" ? existing : null;
 
     const publicId = `kyc/${userId}/${randomUUID()}`;
-    const upload = await this.uploadPdf(file!, publicId);
+    const upload = await this.uploadPdf(lease, file!, publicId);
 
     try {
       await this.prisma.db.identityDocument.upsert({
@@ -152,15 +163,15 @@ export class IdentityDocumentService {
         update: { cloudinaryPublicId: upload.publicId, cloudinaryAssetId: upload.assetId, status: "pending", reviewedAt: null, reviewedBy: null },
       });
     } catch (error) {
-      await this.destroyStoredDocument(upload.publicId).catch(() => undefined);
+      await this.destroyStoredDocument(lease, upload.publicId).catch(() => undefined);
       throw error;
     }
 
     if (replacedDocument && replacedDocument.cloudinaryPublicId !== upload.publicId) {
       try {
-        await this.destroyStoredDocument(replacedDocument.cloudinaryPublicId);
+        await this.destroyStoredDocument(lease, replacedDocument.cloudinaryPublicId);
       } catch {
-        await this.destroyStoredDocument(upload.publicId).catch(() => undefined);
+        await this.destroyStoredDocument(lease, upload.publicId).catch(() => undefined);
         await this.prisma.db.identityDocument.update({
           where: { freelancerProfileId: profile.id },
           data: {

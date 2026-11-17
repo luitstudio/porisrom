@@ -1,6 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
+import { randomUUID } from "node:crypto";
 
 import { PrismaService } from "../prisma/prisma.service";
+import { StorageMutationCoordinator, type StorageMutationLease } from "../storage-maintenance/storage-mutation-coordinator.service";
 import type { UpdateCompanyProfileDto } from "./dto/update-company-profile.dto";
 import { ProfilePhotoStorageService } from "./profile-photo-storage.service";
 
@@ -52,6 +54,7 @@ export class CompanyProfileService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly profilePhotos: ProfilePhotoStorageService,
+    private readonly maintenance?: StorageMutationCoordinator,
   ) {}
 
   async getOwnProfile(userId: string) {
@@ -138,16 +141,39 @@ export class CompanyProfileService {
   }
 
   async uploadLogo(userId: string, file: Express.Multer.File | undefined) {
-    const profile = await this.prisma.db.companyProfile.findUnique({ where: { userId }, select: { id: true } });
-    if (!profile) {
-      throw new NotFoundException("Complete your company profile before adding a logo");
-    }
-
-    const { url } = await this.profilePhotos.uploadPublicPhoto(`profiles/companies/${userId}/logo`, file);
-    return this.prisma.db.companyProfile.update({
-      where: { userId },
-      data: { logoUrl: url },
-      select: { id: true, logoUrl: true },
+    if (!this.maintenance) throw new ServiceUnavailableException("Logo storage maintenance is unavailable");
+    return this.maintenance.run("profile_photo", async lease => {
+      const profile = await this.prisma.db.companyProfile.findUnique({ where: { userId }, select: { id: true, logoUrl: true, logoStorageId: true } });
+      if (!profile) throw new NotFoundException("Complete your company profile before adding a logo");
+      const stored = await this.profilePhotos.storePublicPhoto(lease, `profiles/companies/${userId}/logo-${randomUUID()}`, file);
+      try {
+        const updated = await this.prisma.db.companyProfile.update({
+          where: { userId },
+          data: { logoUrl: stored.url, logoStorageId: stored.storageId },
+          select: { id: true, logoUrl: true },
+        });
+        if (profile.logoStorageId) {
+          await this.replacePreviousLogo(lease, userId, profile, stored.storageId);
+        }
+        return updated;
+      } catch (error) {
+        await this.profilePhotos.removeStoredPublicPhoto(lease, stored.storageId).catch(() => undefined);
+        throw error;
+      }
     });
+  }
+
+  private async replacePreviousLogo(lease: StorageMutationLease, userId: string, previous: { logoUrl: string | null; logoStorageId: string | null }, newStorageId: string) {
+    try {
+      await this.profilePhotos.removeStoredPublicPhoto(lease, previous.logoStorageId!);
+    } catch (cleanupError) {
+      try {
+        await this.prisma.db.companyProfile.update({ where: { userId }, data: { logoUrl: previous.logoUrl, logoStorageId: previous.logoStorageId } });
+      } catch {
+        throw cleanupError;
+      }
+      await this.profilePhotos.removeStoredPublicPhoto(lease, newStorageId).catch(() => undefined);
+      throw cleanupError;
+    }
   }
 }

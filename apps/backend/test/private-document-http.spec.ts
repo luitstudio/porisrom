@@ -18,6 +18,7 @@ import { LocalDocumentStorage } from "../src/document-storage";
 import { IdentityDocumentService } from "../src/kyc/identity-document.service";
 import { PrismaService } from "../src/prisma/prisma.service";
 import { CompanyDocumentService } from "../src/profiles/company-document.service";
+import { allowStorageMutation } from "./storage-maintenance-test-double";
 import { CompanyProfileController } from "../src/profiles/company-profile.controller";
 import { CompanyProfileService } from "../src/profiles/company-profile.service";
 import { FreelancerProfileController } from "../src/profiles/freelancer-profile.controller";
@@ -89,8 +90,8 @@ describe("protected private document HTTP workflows", () => {
         RolesGuard, AdminActionLogInterceptor,
         { provide: PrismaService, useValue: prisma },
         { provide: JwtStrategy, useFactory: () => new JwtStrategy(config, prisma) },
-        { provide: IdentityDocumentService, useValue: new IdentityDocumentService(prisma, config) },
-        { provide: CompanyDocumentService, useValue: new CompanyDocumentService(prisma, config) },
+        { provide: IdentityDocumentService, useValue: new IdentityDocumentService(prisma, config, allowStorageMutation as never) },
+        { provide: CompanyDocumentService, useValue: new CompanyDocumentService(prisma, config, allowStorageMutation as never) },
         { provide: FreelancerProfileService, useValue: {} },
         { provide: CompanyProfileService, useValue: {} },
         { provide: AdminService, useValue: {} },

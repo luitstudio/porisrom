@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { LocalDocumentStorage, localDocumentFallbackEnabled, validateDocumentStorageConfig, validateDocumentStoragePaths } from "../src/document-storage";
 import { IdentityDocumentService } from "../src/kyc/identity-document.service";
 import { CompanyDocumentService } from "../src/profiles/company-document.service";
+import { allowStorageMutation } from "./storage-maintenance-test-double";
 
 describe("document storage configuration and path confinement", () => {
   let root: string;
@@ -89,7 +90,7 @@ describe("document storage configuration and path confinement", () => {
       companyProfile: { findUnique: async () => ({ id: "company-1" }) },
     } };
     const pdf = { size: 8, mimetype: "application/pdf", buffer: Buffer.from("%PDF-1.7") } as Express.Multer.File;
-    await expect(new IdentityDocumentService(prisma as never, settings).uploadForFreelancer("user-1", pdf)).rejects.toMatchObject({ status: 503 });
-    await expect(new CompanyDocumentService(prisma as never, settings).uploadForClient("user-1", { certificate: [pdf] })).rejects.toMatchObject({ status: 503 });
+    await expect(new IdentityDocumentService(prisma as never, settings, allowStorageMutation as never).uploadForFreelancer("user-1", pdf)).rejects.toMatchObject({ status: 503 });
+    await expect(new CompanyDocumentService(prisma as never, settings, allowStorageMutation as never).uploadForClient("user-1", { certificate: [pdf] })).rejects.toMatchObject({ status: 503 });
   });
 });
