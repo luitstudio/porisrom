@@ -26,6 +26,12 @@ This procedure never starts Prisma migrations automatically and never prints a r
 
    Do not use the migration command without recorded database-owner approval and successful migration rehearsal.
 
+   After the migration ledger is current, apply the reviewed least-privilege runtime-role provisioner through the controlled PostgreSQL owner path. It grants only the runtime functions and table access required by backend, admission, dispatcher, and finalizer processes; it must complete before those services start:
+
+   ```text
+   docker compose --env-file /etc/porisrom/production.env --project-directory /opt/porisrom/app --file /opt/porisrom/app/deploy/compose.production.yml exec -T postgres sh -lc 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < /opt/porisrom/app/deploy/backup-admission-role-provision.sql
+   ```
+
 6. On a fresh production database, explicitly seed only the required taxonomy after migrations. This command sets `SEED_LAUNCH_DATA=false`, so it cannot create demo freelancer or company data:
 
    ```text
