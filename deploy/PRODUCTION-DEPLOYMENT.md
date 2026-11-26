@@ -44,8 +44,28 @@ This procedure never starts Prisma migrations automatically and never prints a r
    docker compose --env-file /etc/porisrom/production.env --project-directory /opt/porisrom/app --file /opt/porisrom/app/deploy/compose.production.yml exec -T postgres sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT (SELECT COUNT(*) FROM \"Category\") AS categories, (SELECT COUNT(*) FROM \"Skill\") AS skills;"'
    ```
 
-6. Start the applications only through the gate. It repeats the Compose-backed validation service before requesting PostgreSQL, backend, frontend, and admin startup. It never enables the migration profile:
+6. Start the admission authority before any verifier work. It is private, mTLS-only, and must become healthy before the verifier dispatcher can submit proof-v2 evidence:
+
+   ```text
+   docker compose --env-file /etc/porisrom/production.env --project-directory /opt/porisrom/app --file /opt/porisrom/app/deploy/compose.production.yml up -d --wait admission
+   ```
+
+7. Start backend, frontend, and admin only through the gate. It repeats the Compose-backed validation service before requesting application startup. It never enables the migration profile:
 
    ```text
    node --env-file=/etc/porisrom/production.env /opt/porisrom/app/deploy/production-preflight.mjs
    ```
+
+8. Start the restricted verifier and finalizer workers after admission is healthy. The verifier claims canonical-publication work and the finalizer consumes only admitted-evidence work:
+
+   ```text
+   docker compose --env-file /etc/porisrom/production.env --project-directory /opt/porisrom/app --file /opt/porisrom/app/deploy/compose.production.yml --profile verifier --profile finalizer up -d verifier finalizer
+   ```
+
+## Forward-only migration recovery
+
+Migrations are forward-only. Do not rewrite applied migrations or attempt an in-place schema downgrade.
+
+The verified backup-finalization migrations add terminal `finalized` workflow state and immutable finalization/outbox records. Once a finalization has occurred, an older application image is not an approved image-only rollback target because its generated client may not understand that state.
+
+If deployment recovery is required, stop the new workers and application containers, preserve the migrated database for investigation, and choose one approved path: roll forward with a corrective release, or restore the database and application together from the pre-deployment recovery point under database-owner approval. Never restore only application images after finalized workflow records exist.

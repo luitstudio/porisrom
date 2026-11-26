@@ -1,5 +1,17 @@
 # Database backup and restore runbook
 
+## Phase 2A local production tooling (2026-11-16)
+
+The repository now supplies **unexecuted** VPS-local backup and disposable-restore templates in `deploy/backup/`. Phase 2A intentionally excludes R2, S3, remote uploads, and hybrid backup. The scheduled job streams PostgreSQL custom-format data and the two production asset volumes through `age`, publishes integrity-verified sets under `/opt/porisrom/backups/sets`, and retains 7 daily, 4 weekly, and 3 monthly sets. The age private identity must remain outside the VPS.
+
+Status meanings are deliberately distinct: **created** means staging began; **integrity verified** means encrypted artifact hashes passed; **restore verified** means the exact set restored successfully into the locked-down disposable PostgreSQL 18.2 environment; and **last known-good recovery point** means the newest valid restore-verified set. A valid SHA-256 manifest alone is never restore verification. Retention aborts on corrupt/incomplete/uncertain candidates and never deletes the last known-good recovery point.
+
+It uses the same core protections as the local rehearsal below: custom-format dump, `--no-owner`, `--no-acl`, exclusion of only ephemeral `socket_io_attachments` data, fresh restore target, no `--clean`, and `--exit-on-error`. Unlike the rehearsal, it is a production operator tool and must be installed only after the prerequisites in [the backup deployment guide](../deploy/backup/README.md) are approved. No backup, restore, Docker resource, production database, or VPS was accessed while adding these files.
+
+This local-only phase remains a single-host recovery measure. It does not establish offsite durability, immutable storage, WAL/PITR, a verified RPO, or a verified RTO. Cloudinary object bytes remain a separate recovery dependency. Capacity gates estimate database and asset inputs, encrypted output, staging overhead, and an approved safety reserve before and during staging; they never prune existing recovery points to make space.
+
+Before coordinated DB and volume capture, follow the [storage maintenance gate runbook](PORISROM-STORAGE-MAINTENANCE-RUNBOOK.md). Never archive active storage volumes merely because the API is healthy: capture is allowed only after the durable status reports `backupSafe=true` and `mode=quiescent`. Do not automatically release maintenance after a backup failure, backend restart, or timeout.
+
 2026-10-28. This task performed three logical backup/restore rehearsals on a new loopback-only disposable PostgreSQL 18.2 cluster. It did not back up or mutate shared/staging/production databases.
 
 ## Ownership and policy gates

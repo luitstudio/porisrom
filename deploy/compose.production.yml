@@ -100,6 +100,80 @@ services:
     cpus: 1.0
     pids_limit: 256
 
+  # Not exposed publicly. Production supplies independent mTLS material and a
+  # restricted admission DB URL; it never receives verifier signing keys.
+  admission:
+    build: { context: .., target: admission }
+    environment:
+      ADMISSION_DATABASE_URL: ${ADMISSION_DATABASE_URL:?Supply the restricted admission-runtime PostgreSQL URL}
+      ADMISSION_TLS_KEY_FILE: /run/secrets/admission_tls_key
+      ADMISSION_TLS_CERT_FILE: /run/secrets/admission_tls_cert
+      ADMISSION_TLS_CLIENT_CA_FILE: /run/secrets/admission_client_ca
+    secrets: [admission_tls_key, admission_tls_cert, admission_client_ca]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp]
+    init: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 128
+
+  # Claims only canonical-publication outbox work through the restricted
+  # dispatcher role; it has no admission or backend runtime credential.
+  verifier:
+    profiles: [verifier]
+    build: { context: .., target: verifier }
+    environment:
+      VERIFIER_DISPATCH_DATABASE_URL: ${VERIFIER_DISPATCH_DATABASE_URL:?Supply the restricted dispatcher PostgreSQL URL}
+      VERIFIER_WORKER_ID: ${VERIFIER_WORKER_ID:?Supply a stable verifier worker identity}
+      ADMISSION_ENDPOINT: ${ADMISSION_ENDPOINT:?Supply the internal admission HTTPS endpoint}
+      VERIFIER_TLS_KEY_FILE: /run/secrets/verifier_tls_key
+      VERIFIER_TLS_CERT_FILE: /run/secrets/verifier_tls_cert
+      VERIFIER_TLS_CA_FILE: /run/secrets/verifier_tls_ca
+      VERIFIER_SIGNING_KEY_FILE: /run/secrets/verifier_signing_key
+      VERIFIER_CANDIDATE_INBOX_ROOT: /artifacts/private/backup-candidates
+      VERIFIER_STAGING_ROOT: /tmp/staging
+      VERIFIER_CANONICAL_ROOT: /tmp/canonical
+      VERIFIER_PRINCIPAL_ID: ${VERIFIER_PRINCIPAL_ID:?Supply the registered verifier principal}
+      VERIFIER_CERTIFICATE_FINGERPRINT: ${VERIFIER_CERTIFICATE_FINGERPRINT:?Supply the registered verifier certificate fingerprint}
+    volumes:
+      - production_public_assets:/artifacts/public:ro
+      - production_private_documents:/artifacts/private:ro
+    secrets: [verifier_tls_key, verifier_tls_cert, verifier_tls_ca, verifier_signing_key]
+    read_only: true
+    tmpfs: [/tmp]
+    restart: "no"
+    init: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 128
+
+  finalizer:
+    profiles: [finalizer]
+    build: { context: .., target: finalizer }
+    environment:
+      FINALIZER_DATABASE_URL: ${FINALIZER_DATABASE_URL:?Supply the restricted finalizer PostgreSQL URL}
+      FINALIZER_WORKER_ID: ${FINALIZER_WORKER_ID:?Supply a stable finalizer worker identity}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp]
+    init: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 128m
+    cpus: 0.25
+    pids_limit: 64
+
   frontend:
     build:
       context: ..
@@ -148,3 +222,19 @@ volumes:
   production_postgres_18:
   production_public_assets:
   production_private_documents:
+
+secrets:
+  admission_tls_key:
+    file: "${ADMISSION_TLS_KEY_FILE:?Supply an admission TLS key file}"
+  admission_tls_cert:
+    file: "${ADMISSION_TLS_CERT_FILE:?Supply an admission TLS certificate file}"
+  admission_client_ca:
+    file: "${ADMISSION_TLS_CLIENT_CA_FILE:?Supply a verifier client CA file}"
+  verifier_tls_key:
+    file: "${VERIFIER_TLS_KEY_FILE:?Supply a verifier TLS key file}"
+  verifier_tls_cert:
+    file: "${VERIFIER_TLS_CERT_FILE:?Supply a verifier TLS certificate file}"
+  verifier_tls_ca:
+    file: "${VERIFIER_TLS_CA_FILE:?Supply an admission CA file}"
+  verifier_signing_key:
+    file: "${VERIFIER_SIGNING_KEY_FILE:?Supply a verifier signing key file}"

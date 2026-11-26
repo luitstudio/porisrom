@@ -133,6 +133,24 @@ export class StorageMutationCoordinator implements OnModuleInit, OnModuleDestroy
     });
   }
 
+  /** Internal scheduler counterpart to explicit admin assignment; no HTTP route. */
+  async assignSystemBackupCaptureCoordinator(systemPrincipalId: string, requestId: string, coordinatorPrincipalId: string, reason: string) {
+    return this.prisma.db.$transaction(async tx => {
+      await tx.$queryRaw`SELECT "id" FROM "BackupCaptureRequest" WHERE "id" = ${requestId} FOR UPDATE`;
+      const request = await tx.backupCaptureRequest.findUniqueOrThrow({ where: { id: requestId }, include: { job: true } });
+      if (request.status === "cancelled" || request.status === "blocked_recovery") throw new ConflictException("Capture request cannot be assigned by the scheduler");
+      if (request.job) {
+        if (request.authorizedCoordinatorPrincipalId === coordinatorPrincipalId) return request;
+        throw new ConflictException("A capture request with a job cannot be reassigned");
+      }
+      if (request.authorizedCoordinatorPrincipalId === coordinatorPrincipalId) return request;
+      await this.assertAssignedPrincipalActive(tx, coordinatorPrincipalId);
+      const next = await tx.backupCaptureRequest.update({ where: { id: request.id }, data: { authorizedCoordinatorPrincipalId: coordinatorPrincipalId } });
+      await tx.backupCoordinatorActionLog.create({ data: { principalId: systemPrincipalId, action: "backup_capture_coordinator_assigned_by_scheduler", requestId: request.id, metadata: { authorizedCoordinatorPrincipalId: coordinatorPrincipalId, reason } } });
+      return next;
+    });
+  }
+
   /**
    * Reserved for the future authenticated backup scheduler.  It has no HTTP
    * route: machine authentication and authorization are intentionally added

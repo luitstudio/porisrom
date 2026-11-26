@@ -1,0 +1,20 @@
+CREATE ROLE verifier_test_coordinator LOGIN PASSWORD 'verifier_test_coordinator_only' NOINHERIT;
+CREATE ROLE verifier_test_finalizer LOGIN PASSWORD 'verifier_test_finalizer_only' NOINHERIT;
+CREATE ROLE verifier_test_artifact LOGIN PASSWORD 'verifier_test_artifact_only' NOINHERIT;
+CREATE ROLE verifier_test_restore LOGIN PASSWORD 'verifier_test_restore_only' NOINHERIT;
+CREATE ROLE verifier_test_admission LOGIN PASSWORD 'verifier_test_admission_only' NOINHERIT;
+
+ALTER FUNCTION "backup_admit_capture_verification"(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, INTEGER, "BackupCaptureClass", TEXT, TEXT, TEXT, "BackupVerificationResult", JSONB, TEXT, TEXT) OWNER TO verifier_test_owner;
+ALTER FUNCTION "backup_admit_restore_verification"(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, INTEGER, "BackupCaptureClass", TEXT, TEXT, TEXT, "BackupVerificationResult", JSONB, TEXT, TEXT) OWNER TO verifier_test_owner;
+ALTER FUNCTION "backup_admit_verified_capture_verification"(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, INTEGER, "BackupCaptureClass", TEXT, TEXT, TEXT, JSONB, TEXT, TEXT, TEXT) OWNER TO verifier_test_owner;
+REVOKE ALL ON ALL TABLES IN SCHEMA public FROM verifier_test_coordinator, verifier_test_finalizer, verifier_test_artifact, verifier_test_restore, verifier_test_admission;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM verifier_test_coordinator, verifier_test_finalizer, verifier_test_artifact, verifier_test_restore, verifier_test_admission;
+GRANT USAGE ON SCHEMA public TO verifier_test_coordinator, verifier_test_finalizer, verifier_test_artifact, verifier_test_restore, verifier_test_admission;
+GRANT SELECT ON "BackupCanonicalSet", "BackupVerifierPrincipal", "BackupVerifierCertificate" TO verifier_test_artifact, verifier_test_restore;
+GRANT EXECUTE ON FUNCTION "backup_admit_capture_verification"(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, INTEGER, "BackupCaptureClass", TEXT, TEXT, TEXT, "BackupVerificationResult", JSONB, TEXT, TEXT) TO verifier_test_artifact;
+GRANT EXECUTE ON FUNCTION "backup_admit_restore_verification"(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, INTEGER, "BackupCaptureClass", TEXT, TEXT, TEXT, "BackupVerificationResult", JSONB, TEXT, TEXT) TO verifier_test_restore;
+GRANT EXECUTE ON FUNCTION "backup_admit_verified_capture_verification"(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, INTEGER, "BackupCaptureClass", TEXT, TEXT, TEXT, JSONB, TEXT, TEXT, TEXT) TO verifier_test_admission;
+INSERT INTO "BackupAdmissionDatabaseIdentity" ("databaseRoleName") VALUES ('verifier_test_admission') ON CONFLICT ("databaseRoleName") DO NOTHING;
+INSERT INTO "BackupVerifierPrincipal" (id,name) VALUES ('verifier-test-artifact','Harness artifact verifier'), ('verifier-test-restore','Harness restore verifier');
+INSERT INTO "BackupVerifierCertificate" (id,"principalId",fingerprint,purpose) VALUES ('verifier-test-artifact-cert','verifier-test-artifact',repeat('a',64),'artifact_verifier'), ('verifier-test-restore-cert','verifier-test-restore',repeat('b',64),'restore_verifier');
+INSERT INTO "BackupVerifierDatabaseIdentity" ("databaseRoleName","principalId",purpose) VALUES ('verifier_test_artifact','verifier-test-artifact','artifact_verifier'), ('verifier_test_restore','verifier-test-restore','restore_verifier');

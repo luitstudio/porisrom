@@ -1,0 +1,9 @@
+{
+  "name": "@porisrom/artifact-verifier",
+  "private": true,
+  "version": "0.1.0",
+  "files": ["dist"],
+  "scripts": { "build": "node ../backend/node_modules/typescript/bin/tsc", "type-check": "node ../backend/node_modules/typescript/bin/tsc --noEmit", "start": "node dist/main.js" },
+  "dependencies": { "@porisrom/database": "workspace:*", "@porisrom/shared-types": "workspace:*" },
+  "devDependencies": { "@types/node": "^20", "typescript": "^5" }
+}

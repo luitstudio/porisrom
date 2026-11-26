@@ -1,0 +1,8 @@
+{
+  "name": "@porisrom/backup-finalizer",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": { "build": "node ../backend/node_modules/typescript/bin/tsc", "type-check": "node ../backend/node_modules/typescript/bin/tsc --noEmit", "start": "node dist/main.js" },
+  "dependencies": { "@porisrom/database": "workspace:*" },
+  "devDependencies": { "@types/node": "^20", "typescript": "^5" }
+}

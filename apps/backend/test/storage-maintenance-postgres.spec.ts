@@ -16,7 +16,7 @@ const url = process.env.PORISROM_STORAGE_MAINTENANCE_TEST_DATABASE_URL;
 const adminId = "storage-it-admin"; const adminTwoId = "storage-it-admin-two"; const clientId = "storage-it-client";
 describe.skipIf(!url)("isolated PostgreSQL 18.2 storage maintenance", () => {
   let first: PrismaClient; let second: PrismaClient; let a: StorageMutationCoordinator; let b: StorageMutationCoordinator; let backupCoordinator: BackupCoordinatorService;
-  const configuredUrl = new URL(url!);
+  let configuredUrl: URL;
   const localConfig = () => new ConfigService({ KYC_LOCAL_FALLBACK_ENABLED: "true", NODE_ENV: "test", PRIVATE_DOCUMENT_UPLOAD_DIR: process.env.PRIVATE_DOCUMENT_UPLOAD_DIR, KYC_DOCUMENT_UPLOAD_DIR: process.env.KYC_DOCUMENT_UPLOAD_DIR, PROFILE_PHOTO_UPLOAD_DIR: process.env.PROFILE_PHOTO_UPLOAD_DIR, CLOUDINARY_CLOUD_NAME: "", CLOUDINARY_API_KEY: "", CLOUDINARY_API_SECRET: "", BACKEND_PUBLIC_URL: "http://storage-it.test" });
   const client = (connectionString: string) => {
     const PrismaPg = createRequire(resolve(process.cwd(), "../../packages/database/package.json"))("@prisma/adapter-pg").PrismaPg;
@@ -25,6 +25,7 @@ describe.skipIf(!url)("isolated PostgreSQL 18.2 storage maintenance", () => {
   const deferred = <T = void>() => { let resolve!: (value: T) => void; let reject!: (error: unknown) => void; const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail; }); return { promise, resolve, reject }; };
 
   beforeAll(async () => {
+    configuredUrl = new URL(url!);
     if (configuredUrl.hostname !== "127.0.0.1" || !configuredUrl.pathname.endsWith("_test")) throw Error("Storage integration tests require generated loopback _test database");
     first = client(url!); second = client(url!); await Promise.all([first.$connect(), second.$connect()]);
     a = new StorageMutationCoordinator({ db: first } as never); b = new StorageMutationCoordinator({ db: second } as never);
@@ -356,10 +357,10 @@ describe.skipIf(!url)("isolated PostgreSQL 18.2 storage maintenance", () => {
     await first.backupCoordinatorPrincipal.create({ data: { id: "backup-vps-b", name: "Backup VPS B" } });
     await first.backupCoordinatorCertificate.create({ data: { principalId: "backup-vps-b", fingerprint: "a".repeat(64) } });
     const other = new BackupCoordinatorService({ db: second } as never);
-    const concurrent = await Promise.all([backupCoordinator.deliver("backup-vps", 10), other.deliver("backup-vps", 1)]);
+    const concurrent = await Promise.all([backupCoordinator.deliver("backup-vps", "daily", 10), other.deliver("backup-vps", "daily", 1)]);
     expect(concurrent.flatMap(result => result.jobs)).toHaveLength(1);
     expect(concurrent.flatMap(result => result.jobs)[0]).toMatchObject({ jobId: reference.jobId, leaseId: reference.leaseId, generation: reference.generation, backupClass: reference.backupClass, status: "claimed" });
-    await expect(backupCoordinator.deliver("backup-vps-b", 1)).resolves.toEqual({ jobs: [] });
+    await expect(backupCoordinator.deliver("backup-vps-b", "daily", 1)).resolves.toEqual({ jobs: [] });
     await expect(first.backupCaptureJob.findUniqueOrThrow({ where: { id: reference.jobId } })).resolves.toMatchObject({ authorizedCoordinatorPrincipalId: "backup-vps", claimedBy: "backup-vps" });
     await expect(first.backupCoordinatorActionLog.count({ where: { jobId: reference.jobId, action: "backup_capture_job_delivered" } })).resolves.toBe(1);
   });
@@ -371,19 +372,19 @@ describe.skipIf(!url)("isolated PostgreSQL 18.2 storage maintenance", () => {
     await a.assignBackupCaptureCoordinator(adminId, created.request.id, "backup-vps-b", "B assignment");
     const authorized: any = await a.advanceSystemBackupCaptureRequest("scheduler", created.request.id, "quiescent");
     const bCoordinator = new BackupCoordinatorService({ db: second } as never);
-    await expect(backupCoordinator.deliver("backup-vps", 1)).resolves.toEqual({ jobs: [] });
-    await expect(bCoordinator.deliver("backup-vps-b", 1)).resolves.toMatchObject({ jobs: [expect.objectContaining({ jobId: authorized.job.id, leaseId: authorized.leaseId, generation: authorized.generation, backupClass: "weekly" })] });
+    await expect(backupCoordinator.deliver("backup-vps", "weekly", 1)).resolves.toEqual({ jobs: [] });
+    await expect(bCoordinator.deliver("backup-vps-b", "weekly", 1)).resolves.toMatchObject({ jobs: [expect.objectContaining({ jobId: authorized.job.id, leaseId: authorized.leaseId, generation: authorized.generation, backupClass: "weekly" })] });
     await first.backupCaptureJob.update({ where: { id: authorized.job.id }, data: { authorizedCoordinatorPrincipalId: null, status: "authorized", claimedBy: null, coordinatorAttemptId: null } });
-    await expect(bCoordinator.deliver("backup-vps-b", 1)).resolves.toEqual({ jobs: [] });
+    await expect(bCoordinator.deliver("backup-vps-b", "weekly", 1)).resolves.toEqual({ jobs: [] });
   });
 
   it("fails closed delivery for inactive or revoked principals without changing the job binding", async () => {
     const reference = await coordinatorJob("delivery-fail-closed");
     await first.backupCoordinatorPrincipal.update({ where: { id: "backup-vps" }, data: { active: false } });
-    await expect(backupCoordinator.deliver("backup-vps", 1)).rejects.toMatchObject({ status: 403 });
+    await expect(backupCoordinator.deliver("backup-vps", "daily", 1)).rejects.toMatchObject({ status: 403 });
     await first.backupCoordinatorPrincipal.update({ where: { id: "backup-vps" }, data: { active: true } });
     await first.backupCoordinatorCertificate.update({ where: { fingerprint: "b".repeat(64) }, data: { status: "revoked" } });
-    await expect(backupCoordinator.deliver("backup-vps", 1)).rejects.toMatchObject({ status: 403 });
+    await expect(backupCoordinator.deliver("backup-vps", "daily", 1)).rejects.toMatchObject({ status: 403 });
     await expect(first.backupCaptureJob.findUniqueOrThrow({ where: { id: reference.jobId } })).resolves.toMatchObject({ status: "authorized", claimedBy: null, authorizedCoordinatorPrincipalId: "backup-vps" });
   });
 

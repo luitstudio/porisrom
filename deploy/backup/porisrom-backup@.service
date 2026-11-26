@@ -1,0 +1,29 @@
+[Unit]
+Description=Deprecated compatibility alias for Porisrom backup coordinator (%i)
+Wants=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+EnvironmentFile=/etc/porisrom/backup.env
+ExecStart=/opt/porisrom/app/deploy/backup/porisrom-backup-coordinator.sh --class %i
+UMask=0077
+TimeoutStartSec=2h
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=/opt/porisrom/backups /run/porisrom /var/lib/porisrom/backup-coordinator
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+SystemCallArchitectures=native
