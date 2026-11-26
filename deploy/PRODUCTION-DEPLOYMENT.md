@@ -15,7 +15,9 @@ This procedure never starts Prisma migrations automatically and never prints a r
    node --env-file=/etc/porisrom/production.env /opt/porisrom/app/deploy/production-preflight.mjs --validate-only
    ```
 
-4. A database owner may separately approve PostgreSQL startup, then verify its healthy status. Migrations remain an explicit, separately approved action:
+4. Before changing the database or application containers, verify a current pre-deployment recovery point. The existing production stack must be healthy, the backup must be `INTEGRITY_VERIFIED`, and the latest approved restore rehearsal must be recorded. Start backup work only through the approved coordinator/systemd workflow in `deploy/backup/`; do not invoke the capture script directly or treat an unverified set as rollback protection. Record the recovery-point identifier with the release ticket.
+
+5. A database owner may separately approve PostgreSQL startup, then verify its healthy status. Migrations remain an explicit, separately approved action:
 
    ```text
    docker compose --env-file /etc/porisrom/production.env --project-directory /opt/porisrom/app --file /opt/porisrom/app/deploy/compose.production.yml up -d --wait postgres
@@ -24,7 +26,7 @@ This procedure never starts Prisma migrations automatically and never prints a r
 
    Do not use the migration command without recorded database-owner approval and successful migration rehearsal.
 
-5. On a fresh production database, explicitly seed only the required taxonomy after migrations. This command sets `SEED_LAUNCH_DATA=false`, so it cannot create demo freelancer or company data:
+6. On a fresh production database, explicitly seed only the required taxonomy after migrations. This command sets `SEED_LAUNCH_DATA=false`, so it cannot create demo freelancer or company data:
 
    ```text
    docker compose --env-file /etc/porisrom/production.env --project-directory /opt/porisrom/app --file /opt/porisrom/app/deploy/compose.production.yml --profile migration run --rm --env SEED_LAUNCH_DATA=false --entrypoint node migrate dist/seed.js
@@ -44,22 +46,29 @@ This procedure never starts Prisma migrations automatically and never prints a r
    docker compose --env-file /etc/porisrom/production.env --project-directory /opt/porisrom/app --file /opt/porisrom/app/deploy/compose.production.yml exec -T postgres sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT (SELECT COUNT(*) FROM \"Category\") AS categories, (SELECT COUNT(*) FROM \"Skill\") AS skills;"'
    ```
 
-6. Start the admission authority before any verifier work. It is private, mTLS-only, and must become healthy before the verifier dispatcher can submit proof-v2 evidence:
+7. Start the admission authority before any verifier work. It is private, mTLS-only, and must become healthy before the verifier dispatcher can submit proof-v2 evidence:
 
    ```text
    docker compose --env-file /etc/porisrom/production.env --project-directory /opt/porisrom/app --file /opt/porisrom/app/deploy/compose.production.yml up -d --wait admission
    ```
 
-7. Start backend, frontend, and admin only through the gate. It repeats the Compose-backed validation service before requesting application startup. It never enables the migration profile:
+8. Start backend, frontend, and admin only through the gate. It repeats the Compose-backed validation service before requesting application startup. It never enables the migration profile:
 
    ```text
    node --env-file=/etc/porisrom/production.env /opt/porisrom/app/deploy/production-preflight.mjs
    ```
 
-8. Start the restricted verifier and finalizer workers after admission is healthy. The verifier claims canonical-publication work and the finalizer consumes only admitted-evidence work:
+9. Start the restricted verifier and finalizer workers after admission is healthy. The verifier claims canonical-publication work and the finalizer consumes only admitted-evidence work:
 
    ```text
    docker compose --env-file /etc/porisrom/production.env --project-directory /opt/porisrom/app --file /opt/porisrom/app/deploy/compose.production.yml --profile verifier --profile finalizer up -d verifier finalizer
+   ```
+
+10. Verify production process health before admitting traffic: `postgres`, `admission`, `backend`, `frontend`, `admin`, `verifier`, and `finalizer` must be running; `postgres`, `admission`, `backend`, `frontend`, and `admin` must also report healthy. Inspect only status and sanitized logs:
+
+   ```text
+   docker compose --env-file /etc/porisrom/production.env --project-directory /opt/porisrom/app --file /opt/porisrom/app/deploy/compose.production.yml ps
+   docker compose --env-file /etc/porisrom/production.env --project-directory /opt/porisrom/app --file /opt/porisrom/app/deploy/compose.production.yml logs --tail=100 admission backend verifier finalizer
    ```
 
 ## Forward-only migration recovery

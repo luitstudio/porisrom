@@ -13,6 +13,7 @@
 - [x] Local backup restored into a new isolated database with table fingerprints and constraint/schema verification.
 - [x] Compose configuration parses without printing expanded secrets.
 - [x] Affected admission, verifier, and finalizer images started from validated local images; the live chained workflow passed in a fresh labelled PostgreSQL 18 fixture.
+- [x] Production runbook requires a recorded pre-deployment recovery point, admission-before-verifier startup, finalizer startup, and post-start service health verification.
 - [ ] Remote CI result recorded for the release candidate. Workflow prepared; **not pushed/run remotely**.
 
 ## Staging acceptance (authorized operator)
