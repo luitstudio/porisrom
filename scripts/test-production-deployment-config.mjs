@@ -33,6 +33,11 @@ const [compose, provision, bootstrap, admission, verifier, dockerfile] = await P
 assert.match(compose, /DATABASE_URL: \$\{DATABASE_URL:\?Supply the restricted backend-runtime PostgreSQL URL\}/);
 assert.match(compose, /DATABASE_URL: \$\{MIGRATION_DATABASE_URL:\?Supply the controlled migration-executor PostgreSQL URL\}/);
 assert.match(compose, /ADMISSION_TLS_SERVER_NAME: \$\{ADMISSION_TLS_SERVER_NAME:\?Supply the admission certificate DNS name\}/);
+for (const coordinatorSetting of ["BACKUP_COORDINATOR_TRUSTED_PROXY_IPS", "BACKUP_COORDINATOR_MTLS_PROXY_TOKEN"]) {
+  const occurrences = compose.match(new RegExp(coordinatorSetting, "g")) ?? [];
+  assert.equal(occurrences.length, 2, `${coordinatorSetting} appears only in its backend-only environment entry`);
+  assert.match(compose, new RegExp(`${coordinatorSetting}: \\$\\{${coordinatorSetting}:\\?Supply the private mTLS proxy`));
+}
 for (const role of ["porisrom_backend_runtime", "porisrom_admission_runtime", "porisrom_dispatcher_runtime", "porisrom_finalizer_runtime"]) {
   assert.match(bootstrap, new RegExp(`CREATE ROLE ${role} NOLOGIN NOINHERIT`));
   assert.match(provision, new RegExp(`ALTER ROLE ${role} LOGIN NOINHERIT NOSUPERUSER`));
