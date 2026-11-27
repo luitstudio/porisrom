@@ -2,7 +2,7 @@
 
 This procedure never starts Prisma migrations automatically and never prints a rendered Compose configuration.
 
-1. Provision `/etc/porisrom/production.env` through the approved secret manager. It must be owned by `root`, have mode `600`, stay outside the checkout, and never be committed. Node 24.11.0 supports the documented `--env-file` invocation. The preflight wrapper passes this exact same path to every Docker Compose command with `--env-file`; it also pins Compose's project directory to the repository root. An incidental `.env` in either the checkout or the caller's working directory must never supply missing production variables.
+1. Provision `/etc/porisrom/production.env` through the approved secret manager. Start from `deploy/production.env.example`; it must be owned by `root`, have mode `600`, stay outside the checkout, and never be committed. `MIGRATION_DATABASE_URL` must use the controlled PostgreSQL owner (`POSTGRES_USER`/`POSTGRES_PASSWORD`) and is used only by the migration/seed executor. `DATABASE_URL` must use `porisrom_backend_runtime` and a different password; it is the only database URL passed to the backend. Node 24.11.0 supports the documented `--env-file` invocation. The preflight wrapper passes this exact same path to every Docker Compose command with `--env-file`; it also pins Compose's project directory to the repository root. An incidental `.env` in either the checkout or the caller's working directory must never supply missing production variables.
 2. Run the non-mutating local configuration check first. It validates configuration only; it does not prove Docker deployment readiness and invokes neither Docker nor Compose:
 
    ```text
@@ -17,7 +17,7 @@ This procedure never starts Prisma migrations automatically and never prints a r
 
 4. Before changing the database or application containers, verify a current pre-deployment recovery point. The existing production stack must be healthy, the backup must be `INTEGRITY_VERIFIED`, and the latest approved restore rehearsal must be recorded. Start backup work only through the approved coordinator/systemd workflow in `deploy/backup/`; do not invoke the capture script directly or treat an unverified set as rollback protection. Record the recovery-point identifier with the release ticket.
 
-5. A database owner may separately approve PostgreSQL startup, then verify its healthy status. On a fresh database, bootstrap the restricted runtime role shells before migrations: migration `20261130000000_admission_identity_lookup_lock` grants to `porisrom_admission_runtime`, so post-migration provisioning is too late. This bootstrap creates no login-capable role and grants no schema, table, sequence, or function access. Migrations remain an explicit, separately approved action:
+5. A database owner may separately approve PostgreSQL startup, then verify its healthy status. On a fresh database, bootstrap the restricted runtime role shells before migrations: migration `20261130000000_admission_identity_lookup_lock` grants to `porisrom_admission_runtime`, so post-migration provisioning is too late. This bootstrap creates no login-capable role and grants no schema, table, sequence, or function access. Run migrations only with `MIGRATION_DATABASE_URL`; it is never injected into an application service:
 
    ```text
    docker compose --env-file /etc/porisrom/production.env --project-directory /opt/porisrom/app --file /opt/porisrom/app/deploy/compose.production.yml up -d --wait postgres
@@ -27,10 +27,21 @@ This procedure never starts Prisma migrations automatically and never prints a r
 
    Do not use the migration command without recorded database-owner approval and successful migration rehearsal.
 
-   After the migration ledger is current, apply the reviewed least-privilege runtime-role provisioner through the controlled PostgreSQL owner path. It grants only the runtime functions and table access required by backend, admission, dispatcher, and finalizer processes; it must complete before those services start:
+   After the migration ledger is current, apply the reviewed least-privilege runtime-role provisioner through the controlled PostgreSQL owner path. It grants only the runtime functions and table access required by backend, admission, dispatcher, and finalizer processes; it must complete before those services start. It explicitly enables LOGIN only for those four roles. The database owner, legacy verifier, and SECURITY DEFINER owners remain NOLOGIN:
 
    ```text
    docker compose --env-file /etc/porisrom/production.env --project-directory /opt/porisrom/app --file /opt/porisrom/app/deploy/compose.production.yml exec -T postgres sh -lc 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < /opt/porisrom/app/deploy/backup-admission-role-provision.sql
+   ```
+
+   Set each runtime password interactively in the controlled PostgreSQL session. Do not put passwords on a shell command line or commit them; update the matching secret-manager values (`DATABASE_URL`, `ADMISSION_DATABASE_URL`, `VERIFIER_DISPATCH_DATABASE_URL`, and `FINALIZER_DATABASE_URL`) before starting services:
+
+   ```text
+   docker compose --env-file /etc/porisrom/production.env --project-directory /opt/porisrom/app --file /opt/porisrom/app/deploy/compose.production.yml exec -it postgres sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+   \password porisrom_backend_runtime
+   \password porisrom_admission_runtime
+   \password porisrom_dispatcher_runtime
+   \password porisrom_finalizer_runtime
+   \q
    ```
 
 6. On a fresh production database, explicitly seed only the required taxonomy after migrations. This command sets `SEED_LAUNCH_DATA=false`, so it cannot create demo freelancer or company data:
@@ -59,7 +70,7 @@ This procedure never starts Prisma migrations automatically and never prints a r
    docker compose --env-file /etc/porisrom/production.env --project-directory /opt/porisrom/app --file /opt/porisrom/app/deploy/compose.production.yml up -d --wait admission
    ```
 
-8. Start backend, frontend, and admin only through the gate. It repeats the Compose-backed validation service before requesting application startup. It never enables the migration profile:
+8. Start backend, frontend, and admin only through the gate, after the migration, provisioner, passwords, and taxonomy seed above have completed. It repeats the Compose-backed validation service before requesting application startup. It never enables the migration profile or passes `MIGRATION_DATABASE_URL` to an application service:
 
    ```text
    node --env-file=/etc/porisrom/production.env /opt/porisrom/app/deploy/production-preflight.mjs

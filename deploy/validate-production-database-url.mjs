@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 
-const databaseRequiredNames = ["DATABASE_URL", "POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DB"];
+const databaseRequiredNames = ["DATABASE_URL", "MIGRATION_DATABASE_URL", "POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DB"];
 const googleRequiredNames = ["GOOGLE_CLIENT_ID", "AUTH_GOOGLE_ID", "AUTH_GOOGLE_SECRET"];
 const productionUrlRequiredNames = ["FRONTEND_ORIGIN", "BACKEND_PUBLIC_URL", "BACKEND_URL", "NEXT_PUBLIC_BACKEND_URL", "AUTH_URL"];
 const marketplaceOrigin = "https://app.porisrom.com";
@@ -17,28 +17,43 @@ function decodeUrlComponent(value, name, issues) {
   }
 }
 
+function parseDatabaseUrl(value, name, issues) {
+  try {
+    return new URL(value);
+  } catch {
+    issues.push(`${name} must be a valid URL`);
+    return undefined;
+  }
+}
+
+function validateComposePostgresUrl(url, name, environment, issues) {
+  if (url.protocol !== "postgresql:") issues.push(`${name} protocol must be postgresql:`);
+  if (url.hostname !== "postgres") issues.push(`${name} hostname must be postgres`);
+  if (url.port !== "5432") issues.push(`${name} port must be 5432`);
+  return {
+    username: decodeUrlComponent(url.username, `${name} username`, issues),
+    password: decodeUrlComponent(url.password, `${name} password`, issues),
+    databaseName: decodeUrlComponent(url.pathname.replace(/^\//, ""), `${name} database name`, issues),
+  };
+}
+
 export function validateProductionDatabaseUrl(environment = process.env) {
   const issues = databaseRequiredNames.filter((name) => !environment[name]).map((name) => `${name} is required`);
   if (issues.length > 0) throw new Error(`Production database URL validation failed: ${issues.join("; ")}`);
 
-  let databaseUrl;
-  try {
-    databaseUrl = new URL(environment.DATABASE_URL);
-  } catch {
-    throw new Error("Production database URL validation failed: DATABASE_URL must be a valid URL");
+  const runtimeUrl = parseDatabaseUrl(environment.DATABASE_URL, "DATABASE_URL", issues);
+  const migrationUrl = parseDatabaseUrl(environment.MIGRATION_DATABASE_URL, "MIGRATION_DATABASE_URL", issues);
+  if (runtimeUrl && migrationUrl) {
+    const runtime = validateComposePostgresUrl(runtimeUrl, "DATABASE_URL", environment, issues);
+    const migration = validateComposePostgresUrl(migrationUrl, "MIGRATION_DATABASE_URL", environment, issues);
+    if (runtime.username !== undefined && runtime.username !== "porisrom_backend_runtime") issues.push("DATABASE_URL username must be porisrom_backend_runtime");
+    if (runtime.password !== undefined && runtime.password === environment.POSTGRES_PASSWORD) issues.push("DATABASE_URL password must not match POSTGRES_PASSWORD");
+    if (runtime.databaseName !== undefined && runtime.databaseName !== environment.POSTGRES_DB) issues.push("DATABASE_URL database name must match POSTGRES_DB");
+    if (migration.username !== undefined && migration.username !== environment.POSTGRES_USER) issues.push("MIGRATION_DATABASE_URL username must match POSTGRES_USER");
+    if (migration.password !== undefined && migration.password !== environment.POSTGRES_PASSWORD) issues.push("MIGRATION_DATABASE_URL password must match POSTGRES_PASSWORD");
+    if (migration.databaseName !== undefined && migration.databaseName !== environment.POSTGRES_DB) issues.push("MIGRATION_DATABASE_URL database name must match POSTGRES_DB");
+    if (environment.DATABASE_URL === environment.MIGRATION_DATABASE_URL) issues.push("DATABASE_URL and MIGRATION_DATABASE_URL must be separate credentials");
   }
-
-  if (databaseUrl.protocol !== "postgresql:") issues.push("DATABASE_URL protocol must be postgresql:");
-  if (databaseUrl.hostname !== "postgres") issues.push("DATABASE_URL hostname must be postgres");
-  if (databaseUrl.port !== "5432") issues.push("DATABASE_URL port must be 5432");
-
-  const username = decodeUrlComponent(databaseUrl.username, "DATABASE_URL username", issues);
-  const password = decodeUrlComponent(databaseUrl.password, "DATABASE_URL password", issues);
-  const databaseName = decodeUrlComponent(databaseUrl.pathname.replace(/^\//, ""), "DATABASE_URL database name", issues);
-
-  if (username !== undefined && username !== environment.POSTGRES_USER) issues.push("DATABASE_URL username must match POSTGRES_USER");
-  if (password !== undefined && password !== environment.POSTGRES_PASSWORD) issues.push("DATABASE_URL password must match POSTGRES_PASSWORD");
-  if (databaseName !== undefined && databaseName !== environment.POSTGRES_DB) issues.push("DATABASE_URL database name must match POSTGRES_DB");
 
   if (issues.length > 0) throw new Error(`Production database URL validation failed: ${issues.join("; ")}`);
 }
