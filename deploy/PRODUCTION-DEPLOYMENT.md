@@ -17,10 +17,11 @@ This procedure never starts Prisma migrations automatically and never prints a r
 
 4. Before changing the database or application containers, verify a current pre-deployment recovery point. The existing production stack must be healthy, the backup must be `INTEGRITY_VERIFIED`, and the latest approved restore rehearsal must be recorded. Start backup work only through the approved coordinator/systemd workflow in `deploy/backup/`; do not invoke the capture script directly or treat an unverified set as rollback protection. Record the recovery-point identifier with the release ticket.
 
-5. A database owner may separately approve PostgreSQL startup, then verify its healthy status. Migrations remain an explicit, separately approved action:
+5. A database owner may separately approve PostgreSQL startup, then verify its healthy status. On a fresh database, bootstrap the restricted runtime role shells before migrations: migration `20261130000000_admission_identity_lookup_lock` grants to `porisrom_admission_runtime`, so post-migration provisioning is too late. This bootstrap creates no login-capable role and grants no schema, table, sequence, or function access. Migrations remain an explicit, separately approved action:
 
    ```text
    docker compose --env-file /etc/porisrom/production.env --project-directory /opt/porisrom/app --file /opt/porisrom/app/deploy/compose.production.yml up -d --wait postgres
+   docker compose --env-file /etc/porisrom/production.env --project-directory /opt/porisrom/app --file /opt/porisrom/app/deploy/compose.production.yml exec -T postgres sh -lc 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < /opt/porisrom/app/deploy/migration-role-shell-bootstrap.sql
    docker compose --env-file /etc/porisrom/production.env --project-directory /opt/porisrom/app --file /opt/porisrom/app/deploy/compose.production.yml --profile migration run --rm migrate
    ```
 
