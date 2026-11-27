@@ -1,0 +1,11 @@
+[Unit]
+Description=Schedule Porisrom monthly backup coordinator
+
+[Timer]
+OnCalendar=*-*-01 04:15:00 UTC
+Persistent=true
+RandomizedDelaySec=15m
+Unit=porisrom-backup-coordinator@monthly.service
+
+[Install]
+WantedBy=timers.target

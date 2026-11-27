@@ -1,0 +1,31 @@
+[Unit]
+Description=Porisrom fixed coordinator-authorized encrypted backup capture
+Wants=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+WorkingDirectory=/opt/porisrom/app
+EnvironmentFile=/etc/porisrom/backup.env
+ExecStart=/opt/porisrom/app/deploy/backup/porisrom-backup.sh --request /run/porisrom/backup-capture.request
+UMask=0077
+TimeoutStartSec=2h
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=/opt/porisrom/backups /run/porisrom
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+SystemCallArchitectures=native
+CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER CAP_SETUID CAP_SETGID

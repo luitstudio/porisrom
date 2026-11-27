@@ -12,16 +12,51 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/backend/package.json ./apps/backend/package.json
 COPY apps/frontend/package.json ./apps/frontend/package.json
 COPY apps/admin/package.json ./apps/admin/package.json
+COPY apps/admission/package.json ./apps/admission/package.json
+COPY apps/finalizer/package.json ./apps/finalizer/package.json
+COPY apps/verifier/package.json ./apps/verifier/package.json
 COPY packages/database/package.json ./packages/database/package.json
 COPY packages/config/package.json ./packages/config/package.json
 COPY packages/shared-types/package.json ./packages/shared-types/package.json
 RUN pnpm install --frozen-lockfile
 COPY . .
+RUN pnpm --filter @porisrom/shared-types build
 RUN pnpm --filter @porisrom/database build
 
 FROM dependencies AS backend-build
 RUN pnpm --filter @porisrom/backend build
 RUN pnpm --filter @porisrom/backend deploy --prod /out/backend
+
+FROM dependencies AS admission-build
+RUN pnpm --filter @porisrom/backup-admission build
+RUN pnpm --filter @porisrom/backup-admission deploy --prod /out/admission
+
+FROM runtime-base AS admission
+COPY --from=admission-build --chown=node:node /out/admission/ ./
+USER node
+EXPOSE 7443
+HEALTHCHECK --interval=30s --timeout=5s CMD node -e "require('https').get({hostname:'127.0.0.1',port:7443,path:'/health/ready',rejectUnauthorized:false},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
+CMD ["node", "dist/main.js"]
+
+FROM dependencies AS verifier-build
+RUN pnpm --filter @porisrom/artifact-verifier build
+RUN pnpm --filter @porisrom/artifact-verifier deploy --prod /out/verifier
+
+FROM dependencies AS finalizer-build
+RUN pnpm --filter @porisrom/backup-finalizer build
+RUN pnpm --filter @porisrom/backup-finalizer deploy --prod /out/finalizer
+
+FROM runtime-base AS verifier
+COPY --from=verifier-build --chown=node:node /out/verifier/ ./
+COPY --from=verifier-build --chown=node:node /app/apps/verifier/dist/ ./dist/
+COPY --from=backend-build --chown=node:node /out/backend/dist/storage-maintenance/backup-artifact-verifier.engine.js ./dist/verifier/src/backup-artifact-verifier.engine.js
+USER node
+CMD ["node", "dist/verifier/src/main.js"]
+
+FROM runtime-base AS finalizer
+COPY --from=finalizer-build --chown=node:node /out/finalizer/ ./
+USER node
+CMD ["node", "dist/main.js"]
 
 FROM runtime-base AS backend
 COPY --from=backend-build --chown=node:node /out/backend/ ./

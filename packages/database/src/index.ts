@@ -4,7 +4,8 @@ import { PrismaClient } from "./generated/prisma/client.ts";
 
 export * from "./generated/prisma/client.ts";
 
-export function createPrismaClient() {
-  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+export function createPrismaClient(connectionString = process.env.DATABASE_URL) {
+  if (!connectionString) throw new Error("DATABASE_URL is required");
+  const adapter = new PrismaPg({ connectionString });
   return new PrismaClient({ adapter });
 }

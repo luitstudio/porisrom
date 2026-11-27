@@ -7,6 +7,8 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 
 import { ProfilePhotoStorageService } from "../src/profiles/profile-photo-storage.service";
 
+const lease = { operationId: "test-photo", assertNotFenced: async () => undefined };
+
 const cloudinaryMocks = vi.hoisted(() => ({
   uploadStream: vi.fn(),
   destroy: vi.fn(),
@@ -42,21 +44,21 @@ describe("ProfilePhotoStorageService", () => {
     cloudinaryMocks.destroy.mockReset();
   });
 
-  it("uploads public profile photos with deterministic Cloudinary IDs", async () => {
+  it("uploads versioned public profile photos with durable storage IDs", async () => {
     cloudinaryMocks.uploadStream.mockImplementationOnce((options: Record<string, unknown>, callback: (error: null, result: object) => void) => ({
       end: () => callback(null, { public_id: options.public_id, type: "upload", resource_type: "image", secure_url: "https://res.cloudinary.com/demo/avatar.jpg" }),
     }));
 
     const service = new ProfilePhotoStorageService(config());
-    const result = await service.uploadPublicPhoto("profiles/freelancers/user-1/avatar", imageFile());
+    const result = await service.storePublicPhoto(lease, "profiles/freelancers/user-1/avatar-version", imageFile());
 
-    expect(result).toEqual({ url: "https://res.cloudinary.com/demo/avatar.jpg" });
+    expect(result).toEqual({ url: "https://res.cloudinary.com/demo/avatar.jpg", storageId: "cloudinary:profiles/freelancers/user-1/avatar-version" });
     expect(cloudinaryMocks.uploadStream).toHaveBeenCalledWith(
       expect.objectContaining({
         resource_type: "image",
         type: "upload",
-        public_id: "profiles/freelancers/user-1/avatar",
-        overwrite: true,
+        public_id: "profiles/freelancers/user-1/avatar-version",
+        overwrite: false,
         invalidate: true,
         unique_filename: false,
         use_filename: false,
@@ -71,19 +73,19 @@ describe("ProfilePhotoStorageService", () => {
     }));
 
     const service = new ProfilePhotoStorageService(config());
-    const result = await service.uploadPublicPhoto(
+    const result = await service.storePublicPhoto(lease,
       "profiles/freelancers/user-1/avatar",
       imageFile({ mimetype: "application/octet-stream", size: pngBytes.length, buffer: pngBytes }),
     );
 
-    expect(result).toEqual({ url: "https://res.cloudinary.com/demo/avatar.png" });
+    expect(result).toMatchObject({ url: "https://res.cloudinary.com/demo/avatar.png", storageId: expect.stringMatching(/^cloudinary:/) });
   });
 
   it("rejects files that are not supported image uploads", async () => {
     const service = new ProfilePhotoStorageService(config());
 
     await expect(
-      service.uploadPublicPhoto("profiles/freelancers/user-1/avatar", imageFile({ mimetype: "application/pdf", buffer: Buffer.from("%PDF-") })),
+      service.storePublicPhoto(lease, "profiles/freelancers/user-1/avatar", imageFile({ mimetype: "application/pdf", buffer: Buffer.from("%PDF-") })),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(cloudinaryMocks.uploadStream).not.toHaveBeenCalled();
   });
@@ -99,9 +101,9 @@ describe("ProfilePhotoStorageService", () => {
     }));
 
     try {
-      const result = await service.uploadPublicPhoto("profiles/freelancers/user-1/avatar", imageFile());
+      const result = await service.storePublicPhoto(lease, "profiles/freelancers/user-1/avatar", imageFile());
 
-      expect(result).toEqual({ url: "http://localhost:4000/uploads/profile-photos/profiles/freelancers/user-1/avatar.jpg" });
+      expect(result).toEqual({ url: "http://localhost:4000/uploads/profile-photos/profiles/freelancers/user-1/avatar.jpg", storageId: "local:profile-photos/profiles/freelancers/user-1/avatar.jpg" });
       await expect(readFile(join(uploadRoot, "profile-photos/profiles/freelancers/user-1/avatar.jpg"))).resolves.toEqual(imageFile().buffer);
     } finally {
       await rm(uploadRoot, { recursive: true, force: true });
@@ -117,8 +119,9 @@ describe("ProfilePhotoStorageService", () => {
     }));
 
     try {
-      await expect(service.uploadPublicPhoto("profiles/freelancers/user-1/avatar", imageFile())).resolves.toEqual({
+      await expect(service.storePublicPhoto(lease, "profiles/freelancers/user-1/avatar", imageFile())).resolves.toEqual({
         url: "http://localhost:4000/uploads/profile-photos/profiles/freelancers/user-1/avatar.jpg",
+        storageId: "local:profile-photos/profiles/freelancers/user-1/avatar.jpg",
       });
       expect(cloudinaryMocks.uploadStream).not.toHaveBeenCalled();
     } finally {

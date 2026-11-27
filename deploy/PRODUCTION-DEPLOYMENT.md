@@ -15,16 +15,25 @@ This procedure never starts Prisma migrations automatically and never prints a r
    node --env-file=/etc/porisrom/production.env /opt/porisrom/app/deploy/production-preflight.mjs --validate-only
    ```
 
-4. A database owner may separately approve PostgreSQL startup, then verify its healthy status. Migrations remain an explicit, separately approved action:
+4. Before changing the database or application containers, verify a current pre-deployment recovery point. The existing production stack must be healthy, the backup must be `INTEGRITY_VERIFIED`, and the latest approved restore rehearsal must be recorded. Start backup work only through the approved coordinator/systemd workflow in `deploy/backup/`; do not invoke the capture script directly or treat an unverified set as rollback protection. Record the recovery-point identifier with the release ticket.
+
+5. A database owner may separately approve PostgreSQL startup, then verify its healthy status. On a fresh database, bootstrap the restricted runtime role shells before migrations: migration `20261130000000_admission_identity_lookup_lock` grants to `porisrom_admission_runtime`, so post-migration provisioning is too late. This bootstrap creates no login-capable role and grants no schema, table, sequence, or function access. Migrations remain an explicit, separately approved action:
 
    ```text
    docker compose --env-file /etc/porisrom/production.env --project-directory /opt/porisrom/app --file /opt/porisrom/app/deploy/compose.production.yml up -d --wait postgres
+   docker compose --env-file /etc/porisrom/production.env --project-directory /opt/porisrom/app --file /opt/porisrom/app/deploy/compose.production.yml exec -T postgres sh -lc 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < /opt/porisrom/app/deploy/migration-role-shell-bootstrap.sql
    docker compose --env-file /etc/porisrom/production.env --project-directory /opt/porisrom/app --file /opt/porisrom/app/deploy/compose.production.yml --profile migration run --rm migrate
    ```
 
    Do not use the migration command without recorded database-owner approval and successful migration rehearsal.
 
-5. On a fresh production database, explicitly seed only the required taxonomy after migrations. This command sets `SEED_LAUNCH_DATA=false`, so it cannot create demo freelancer or company data:
+   After the migration ledger is current, apply the reviewed least-privilege runtime-role provisioner through the controlled PostgreSQL owner path. It grants only the runtime functions and table access required by backend, admission, dispatcher, and finalizer processes; it must complete before those services start:
+
+   ```text
+   docker compose --env-file /etc/porisrom/production.env --project-directory /opt/porisrom/app --file /opt/porisrom/app/deploy/compose.production.yml exec -T postgres sh -lc 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < /opt/porisrom/app/deploy/backup-admission-role-provision.sql
+   ```
+
+6. On a fresh production database, explicitly seed only the required taxonomy after migrations. This command sets `SEED_LAUNCH_DATA=false`, so it cannot create demo freelancer or company data:
 
    ```text
    docker compose --env-file /etc/porisrom/production.env --project-directory /opt/porisrom/app --file /opt/porisrom/app/deploy/compose.production.yml --profile migration run --rm --env SEED_LAUNCH_DATA=false --entrypoint node migrate dist/seed.js
@@ -44,8 +53,35 @@ This procedure never starts Prisma migrations automatically and never prints a r
    docker compose --env-file /etc/porisrom/production.env --project-directory /opt/porisrom/app --file /opt/porisrom/app/deploy/compose.production.yml exec -T postgres sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT (SELECT COUNT(*) FROM \"Category\") AS categories, (SELECT COUNT(*) FROM \"Skill\") AS skills;"'
    ```
 
-6. Start the applications only through the gate. It repeats the Compose-backed validation service before requesting PostgreSQL, backend, frontend, and admin startup. It never enables the migration profile:
+7. Start the admission authority before any verifier work. It is private, mTLS-only, and must become healthy before the verifier dispatcher can submit proof-v2 evidence:
+
+   ```text
+   docker compose --env-file /etc/porisrom/production.env --project-directory /opt/porisrom/app --file /opt/porisrom/app/deploy/compose.production.yml up -d --wait admission
+   ```
+
+8. Start backend, frontend, and admin only through the gate. It repeats the Compose-backed validation service before requesting application startup. It never enables the migration profile:
 
    ```text
    node --env-file=/etc/porisrom/production.env /opt/porisrom/app/deploy/production-preflight.mjs
    ```
+
+9. Start the restricted verifier and finalizer workers after admission is healthy. The verifier claims canonical-publication work and the finalizer consumes only admitted-evidence work:
+
+   ```text
+   docker compose --env-file /etc/porisrom/production.env --project-directory /opt/porisrom/app --file /opt/porisrom/app/deploy/compose.production.yml --profile verifier --profile finalizer up -d verifier finalizer
+   ```
+
+10. Verify production process health before admitting traffic: `postgres`, `admission`, `backend`, `frontend`, `admin`, `verifier`, and `finalizer` must be running; `postgres`, `admission`, `backend`, `frontend`, and `admin` must also report healthy. Inspect only status and sanitized logs:
+
+   ```text
+   docker compose --env-file /etc/porisrom/production.env --project-directory /opt/porisrom/app --file /opt/porisrom/app/deploy/compose.production.yml ps
+   docker compose --env-file /etc/porisrom/production.env --project-directory /opt/porisrom/app --file /opt/porisrom/app/deploy/compose.production.yml logs --tail=100 admission backend verifier finalizer
+   ```
+
+## Forward-only migration recovery
+
+Migrations are forward-only. Do not rewrite applied migrations or attempt an in-place schema downgrade.
+
+The verified backup-finalization migrations add terminal `finalized` workflow state and immutable finalization/outbox records. Once a finalization has occurred, an older application image is not an approved image-only rollback target because its generated client may not understand that state.
+
+If deployment recovery is required, stop the new workers and application containers, preserve the migrated database for investigation, and choose one approved path: roll forward with a corrective release, or restore the database and application together from the pre-deployment recovery point under database-owner approval. Never restore only application images after finalized workflow records exist.

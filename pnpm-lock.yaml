@@ -92,6 +92,22 @@ importers:
         specifier: ^3.2.7
         version: 3.2.7(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)
 
+  apps/admission:
+    dependencies:
+      '@porisrom/database':
+        specifier: workspace:*
+        version: link:../../packages/database
+      '@porisrom/shared-types':
+        specifier: workspace:*
+        version: link:../../packages/shared-types
+    devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.43
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
   apps/backend:
     dependencies:
       '@nestjs/common':
@@ -121,6 +137,9 @@ importers:
       '@porisrom/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@porisrom/shared-types':
+        specifier: workspace:*
+        version: link:../../packages/shared-types
       '@socket.io/postgres-adapter':
         specifier: 0.5.0
         version: 0.5.0(socket.io-adapter@2.5.8)
@@ -207,6 +226,19 @@ importers:
         specifier: '3'
         version: 3.2.7(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)
 
+  apps/finalizer:
+    dependencies:
+      '@porisrom/database':
+        specifier: workspace:*
+        version: link:../../packages/database
+    devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.43
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
   apps/frontend:
     dependencies:
       '@base-ui/react':
@@ -289,6 +321,22 @@ importers:
         specifier: ^5
         version: 5.9.3
 
+  apps/verifier:
+    dependencies:
+      '@porisrom/database':
+        specifier: workspace:*
+        version: link:../../packages/database
+      '@porisrom/shared-types':
+        specifier: workspace:*
+        version: link:../../packages/shared-types
+    devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.43
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
   packages/config: {}
 
   packages/database:
@@ -322,7 +370,14 @@ importers:
         specifier: ^5
         version: 5.9.3
 
-  packages/shared-types: {}
+  packages/shared-types:
+    devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.43
+      typescript:
+        specifier: ^5
+        version: 5.9.3
 
 packages:
 

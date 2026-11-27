@@ -31,38 +31,38 @@ enum ExternalIdentityProvider {
 }
 
 model User {
-  id                  String        @id @default(cuid())
-  name                String
-  email               String        @unique
-  passwordHash        String
-  role                Role?
-  status              AccountStatus @default(active)
-  termsAcceptedAt     DateTime?
-  termsVersion        String?
+  id                      String        @id @default(cuid())
+  name                    String
+  email                   String        @unique
+  passwordHash            String
+  role                    Role?
+  status                  AccountStatus @default(active)
+  termsAcceptedAt         DateTime?
+  termsVersion            String?
   privacyPolicyAcceptedAt DateTime?
   privacyPolicyVersion    String?
-  isOnboarded         Boolean       @default(false)
-  profileCompleteness Int           @default(0)
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
+  isOnboarded             Boolean       @default(false)
+  profileCompleteness     Int           @default(0)
+  createdAt               DateTime      @default(now())
+  updatedAt               DateTime      @updatedAt
 
   freelancerProfile FreelancerProfile?
   companyProfile    CompanyProfile?
 
-  authSessions        AuthSession[]
+  authSessions       AuthSession[]
   externalIdentities ExternalIdentity[]
   googleLinkIntents  GoogleLinkIntent[]
 
-  connectionsSent     Connection[] @relation("ConnectionRequester")
-  connectionsReceived Connection[] @relation("ConnectionReceiver")
-  messages            Message[]
-  reviewsAuthored     Review[]
-  paymentClaims       PaymentClaim[]
-  blocksSent          UserBlock[] @relation("SafetyBlocker")
-  blocksReceived      UserBlock[] @relation("SafetyBlocked")
-  safetyCasesCreated  SafetyCase[] @relation("SafetyReporter")
-  safetyCasesTargeted SafetyCase[] @relation("SafetyTarget")
-  safetyCaseEvents    SafetyCaseEvent[]
+  connectionsSent        Connection[]            @relation("ConnectionRequester")
+  connectionsReceived    Connection[]            @relation("ConnectionReceiver")
+  messages               Message[]
+  reviewsAuthored        Review[]
+  paymentClaims          PaymentClaim[]
+  blocksSent             UserBlock[]             @relation("SafetyBlocker")
+  blocksReceived         UserBlock[]             @relation("SafetyBlocked")
+  safetyCasesCreated     SafetyCase[]            @relation("SafetyReporter")
+  safetyCasesTargeted    SafetyCase[]            @relation("SafetyTarget")
+  safetyCaseEvents       SafetyCaseEvent[]
   notificationReadStates NotificationReadState[]
 }
 
@@ -82,13 +82,13 @@ model ExternalIdentity {
 }
 
 model GoogleLinkIntent {
-  nonce     String   @id
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  sessionId String
-  expiresAt DateTime
+  nonce      String    @id
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionId  String
+  expiresAt  DateTime
   consumedAt DateTime?
-  createdAt DateTime @default(now())
+  createdAt  DateTime  @default(now())
 
   @@index([userId, sessionId])
   @@index([expiresAt])
@@ -124,26 +124,27 @@ enum IdentityDocumentReviewStatus {
 }
 
 model FreelancerProfile {
-  id                 String             @id @default(cuid())
-  userId             String             @unique
-  user               User               @relation(fields: [userId], references: [id])
-  bio                String?
-  profilePhotoUrl    String?
-  address            String?
-  state              String?
-  district           String?
-  languages          String[]           @default([])
-  experienceLevel    String?
-  verificationStatus VerificationStatus @default(pending)
-  isBadgeVerified    Boolean            @default(false)
-  ratingAvg          Float              @default(0)
-  ratingCount        Int                @default(0)
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
+  id                    String             @id @default(cuid())
+  userId                String             @unique
+  user                  User               @relation(fields: [userId], references: [id])
+  bio                   String?
+  profilePhotoUrl       String?
+  profilePhotoStorageId String?
+  address               String?
+  state                 String?
+  district              String?
+  languages             String[]           @default([])
+  experienceLevel       String?
+  verificationStatus    VerificationStatus @default(pending)
+  isBadgeVerified       Boolean            @default(false)
+  ratingAvg             Float              @default(0)
+  ratingCount           Int                @default(0)
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
 
-  categories     FreelancerCategory[]
-  skills         FreelancerSkill[]
-  portfolioItems PortfolioItem[]
+  categories       FreelancerCategory[]
+  skills           FreelancerSkill[]
+  portfolioItems   PortfolioItem[]
   identityDocument IdentityDocument?
 }
 
@@ -166,6 +167,7 @@ model CompanyProfile {
   user               User               @relation(fields: [userId], references: [id])
   companyName        String
   logoUrl            String?
+  logoStorageId      String?
   about              String?
   address            String?
   state              String?
@@ -243,9 +245,9 @@ model FreelancerSkill {
 
 model CompanyCategory {
   companyProfileId String
-  categoryId        String
-  companyProfile    CompanyProfile @relation(fields: [companyProfileId], references: [id])
-  category          Category       @relation(fields: [categoryId], references: [id])
+  categoryId       String
+  companyProfile   CompanyProfile @relation(fields: [companyProfileId], references: [id])
+  category         Category       @relation(fields: [categoryId], references: [id])
 
   @@id([companyProfileId, categoryId])
 }
@@ -275,6 +277,485 @@ model AdminActionLog {
   action       String
   metadata     Json?
   createdAt    DateTime @default(now())
+}
+
+// Singleton, durable gate for backup-safe file-storage maintenance.  It is
+// intentionally separate from general application maintenance: only storage
+// mutations participate.
+enum StorageMaintenanceMode {
+  inactive
+  draining
+  quiescent
+  recovery_required
+}
+
+enum StorageMutationKind {
+  identity_document
+  company_document
+  profile_photo
+}
+
+enum StorageMutationStatus {
+  active
+  fenced
+  completed
+  failed
+  reconciled
+}
+
+enum StorageCaptureOutcome {
+  succeeded
+  failed
+  uncertain
+}
+
+enum BackupCaptureClass {
+  daily
+  weekly
+  monthly
+}
+
+enum BackupCaptureRequestStatus {
+  pending
+  maintenance_draining
+  blocked_recovery
+  ready
+  cancelled
+}
+
+enum BackupCaptureJobStatus {
+  authorized
+  claimed
+  running
+  result_pending
+  reported
+  finalized
+}
+
+enum BackupWorkflowOutboxStatus {
+  pending
+  processing
+  delivered
+  failed
+}
+
+enum BackupCoordinatorCertificateStatus {
+  active
+  revoked
+}
+
+// Independent verifier certificates are deliberately separate from the
+// coordinator mTLS identity. A certificate can authorize exactly one kind of
+// evidence, enforced again by composite foreign keys in the database.
+enum BackupVerifierCertificatePurpose {
+  artifact_verifier
+  restore_verifier
+}
+
+enum BackupVerifierCertificateStatus {
+  active
+  revoked
+}
+
+enum BackupVerificationResult {
+  verified
+  failed
+  incomplete
+}
+
+// A backend-process identity. It is deliberately never reused after a
+// restart; fencing this row revokes every lease issued to that process.
+model StorageMaintenanceWorker {
+  id            String    @id
+  startedAt     DateTime  @default(now())
+  heartbeatAt   DateTime  @default(now())
+  fenceEpoch    Int       @default(0)
+  fencedAt      DateTime?
+  fencedBy      String?
+  fencingReason String?
+  stoppedAt     DateTime?
+
+  operations StorageMaintenanceOperation[]
+}
+
+model StorageMaintenanceState {
+  id                   String                 @id
+  mode                 StorageMaintenanceMode @default(inactive)
+  generation           Int                    @default(0)
+  activatedAt          DateTime?
+  activatedBy          String?
+  quiescentAt          DateTime?
+  disabledAt           DateTime?
+  disabledBy           String?
+  recoveryRequiredAt   DateTime?
+  captureLeaseId       String?
+  captureGeneration    Int?
+  captureAcquiredAt    DateTime?
+  captureAcquiredBy    String?
+  captureOutcome       StorageCaptureOutcome?
+  captureOutcomeAt     DateTime?
+  captureOutcomeBy     String?
+  captureOutcomeReason String?
+  captureJobId         String?                @unique
+  captureJob           BackupCaptureJob?      @relation("ActiveStorageCaptureJob", fields: [captureJobId], references: [id], onDelete: Restrict)
+  updatedAt            DateTime               @updatedAt
+}
+
+// A request represents one authorized scheduled occurrence. It is created
+// before maintenance starts draining; it cannot itself execute a backup.
+model BackupCaptureRequest {
+  id                               String                       @id @default(cuid())
+  scheduleKey                      String
+  scheduledFor                     DateTime
+  backupClass                      BackupCaptureClass
+  status                           BackupCaptureRequestStatus   @default(pending)
+  requestedBy                      String?
+  // Null means legacy/unassigned and is deliberately ineligible for machine work.
+  authorizedCoordinatorPrincipalId String?
+  authorizedCoordinatorPrincipal   BackupCoordinatorPrincipal?  @relation("AuthorizedCaptureRequests", fields: [authorizedCoordinatorPrincipalId], references: [id], onDelete: Restrict)
+  requestedAt                      DateTime                     @default(now())
+  updatedAt                        DateTime                     @updatedAt
+  job                              BackupCaptureJob?
+  canonicalSets                    BackupCanonicalSet[]         @relation("CanonicalCaptureRequest")
+  actions                          BackupCoordinatorActionLog[]
+
+  @@unique([scheduleKey, scheduledFor])
+  @@index([status, scheduledFor])
+  @@index([authorizedCoordinatorPrincipalId, status], map: "BackupCaptureRequest_authorizedCoordinatorPrincipalId_statu_idx")
+}
+
+// Created atomically with an active generation-bound capture lease. Lease
+// fields are immutable by service contract; uniqueness prevents rebinding.
+model BackupCaptureJob {
+  id                               String                       @id @default(cuid())
+  requestId                        String                       @unique
+  request                          BackupCaptureRequest         @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  backupClass                      BackupCaptureClass
+  // Copied atomically from the request in Step 6A.2; never inferred from a certificate.
+  authorizedCoordinatorPrincipalId String?
+  authorizedCoordinatorPrincipal   BackupCoordinatorPrincipal?  @relation("AuthorizedCaptureJobs", fields: [authorizedCoordinatorPrincipalId], references: [id], onDelete: Restrict)
+  leaseId                          String                       @unique
+  leaseGeneration                  Int
+  status                           BackupCaptureJobStatus       @default(authorized)
+  authorizedAt                     DateTime                     @default(now())
+  claimedAt                        DateTime?
+  claimedBy                        String?
+  coordinatorAttemptId             String?                      @unique
+  resultIdempotencyKey             String?                      @unique
+  resultSetId                      String?
+  resultManifestSha256             String?
+  resultOutcome                    StorageCaptureOutcome?
+  resultReason                     String?
+  reportedAt                       DateTime?
+  finalizedAt                      DateTime?                    @db.Timestamptz(6)
+  finalizationIdempotencyKey       String?                      @unique
+  finalizedVerificationAttemptId   String?                      @unique
+  activeMaintenanceState           StorageMaintenanceState?     @relation("ActiveStorageCaptureJob")
+  canonicalSet                     BackupCanonicalSet?
+  finalization                     BackupCaptureFinalization?
+  actions                          BackupCoordinatorActionLog[]
+
+  @@unique([leaseId, leaseGeneration])
+  // Supports the canonical-set composite FK, which binds all capture identity
+  // fields to this exact job rather than merely to individually valid rows.
+  @@unique([id, requestId, coordinatorAttemptId, leaseId, leaseGeneration, backupClass], map: "BackupCaptureJob_canonicalBinding_key")
+  @@index([status, authorizedAt])
+  @@index([authorizedCoordinatorPrincipalId, status])
+}
+
+// Service identities are deliberately independent of application users and
+// JWTs. A reverse proxy verifies the TLS client certificate and forwards only
+// its normalized SHA-256 fingerprint to the restricted coordinator route.
+model BackupCoordinatorPrincipal {
+  id                 String                         @id
+  name               String
+  active             Boolean                        @default(true)
+  createdAt          DateTime                       @default(now())
+  disabledAt         DateTime?
+  certificates       BackupCoordinatorCertificate[]
+  authorizedRequests BackupCaptureRequest[]         @relation("AuthorizedCaptureRequests")
+  authorizedJobs     BackupCaptureJob[]             @relation("AuthorizedCaptureJobs")
+}
+
+model BackupCoordinatorCertificate {
+  id           String                             @id @default(cuid())
+  principalId  String
+  principal    BackupCoordinatorPrincipal         @relation(fields: [principalId], references: [id], onDelete: Restrict)
+  fingerprint  String                             @unique
+  status       BackupCoordinatorCertificateStatus @default(active)
+  notBefore    DateTime?
+  notAfter     DateTime?
+  createdAt    DateTime                           @default(now())
+  revokedAt    DateTime?
+  revokedBy    String?
+  revokeReason String?
+
+  @@index([principalId, status])
+}
+
+// An independently authenticated verifier identity. It is not interchangeable
+// with a coordinator identity, and it is retained for historical evidence.
+model BackupVerifierPrincipal {
+  id         String    @id
+  name       String
+  active     Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  disabledAt DateTime?
+
+  certificates                BackupVerifierCertificate[]
+  databaseIdentities          BackupVerifierDatabaseIdentity[]
+  captureVerificationAttempts BackupCaptureVerificationAttempt[]
+  restoreVerificationAttempts BackupRestoreVerificationAttempt[]
+  workloadIdentities          BackupVerifierWorkloadIdentity[]
+  finalizations               BackupCaptureFinalization[]
+}
+
+model BackupVerifierWorkloadIdentity {
+  fingerprint String                           @id
+  principalId String
+  purpose     BackupVerifierCertificatePurpose
+  active      Boolean                          @default(true)
+  createdAt   DateTime                         @default(now()) @db.Timestamptz(6)
+  principal   BackupVerifierPrincipal          @relation(fields: [principalId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([principalId, purpose, fingerprint], map: "BackupVerifierWorkloadIdentit_principalId_purpose_fingerpri_key")
+}
+
+model BackupVerifierCertificate {
+  id           String                           @id @default(cuid())
+  principalId  String
+  principal    BackupVerifierPrincipal          @relation(fields: [principalId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "BackupVerifierCertificate_principalId_fkey")
+  fingerprint  String                           @unique
+  // Immutable registered Ed25519 verification key. Null is legacy provenance
+  // only and is never eligible for B2 authenticated admission.
+  signingPublicKeyPem String?
+  purpose      BackupVerifierCertificatePurpose
+  status       BackupVerifierCertificateStatus  @default(active)
+  notBefore    DateTime?
+  notAfter     DateTime?
+  createdAt    DateTime                         @default(now())
+  revokedAt    DateTime?
+  revokedBy    String?
+  revokeReason String?
+
+  captureVerificationAttempts BackupCaptureVerificationAttempt[] @relation("CaptureVerificationCertificate")
+  restoreVerificationAttempts BackupRestoreVerificationAttempt[] @relation("RestoreVerificationCertificate")
+  finalizations               BackupCaptureFinalization[]
+
+  @@unique([id, principalId, purpose])
+  @@index([principalId, purpose, status])
+}
+
+// Maps only the independently deployed admission authority's database login.
+// It deliberately has no verifier-principal relation: that is proven by the
+// signed payload and certificate lookup in the protected SQL function.
+model BackupAdmissionDatabaseIdentity {
+  databaseRoleName String   @id
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now()) @db.Timestamptz(6)
+}
+
+// Maps an independently provisioned, purpose-specific database login to one
+// verifier principal. Admission functions use session_user, never body data.
+model BackupVerifierDatabaseIdentity {
+  databaseRoleName String                           @id
+  principalId      String
+  purpose          BackupVerifierCertificatePurpose
+  active           Boolean                          @default(true)
+  createdAt        DateTime                         @default(now())
+
+  principal BackupVerifierPrincipal @relation(fields: [principalId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "BackupVerifierDatabaseIdentity_principalId_fkey")
+
+  @@unique([principalId, purpose])
+}
+
+// Publication is the durable boundary between a completed capture and later
+// independent verification. Every identity value below is bound back to the
+// exact capture job through a composite FK and is immutable after insertion.
+model BackupCanonicalSet {
+  id                    String             @id @default(cuid())
+  captureJobId          String             @unique
+  captureRequestId      String
+  captureAttemptId      String
+  leaseId               String
+  generation            Int
+  backupClass           BackupCaptureClass
+  manifestSha256        String
+  manifestFormatVersion Int
+  canonicalStorageKey   String
+  publishedAt           DateTime           @default(now())
+
+  captureJob                  BackupCaptureJob                   @relation(fields: [captureJobId, captureRequestId, captureAttemptId, leaseId, generation, backupClass], references: [id, requestId, coordinatorAttemptId, leaseId, leaseGeneration, backupClass], onDelete: Restrict, onUpdate: Restrict, map: "BackupCanonicalSet_captureBinding_fkey")
+  captureRequest              BackupCaptureRequest               @relation("CanonicalCaptureRequest", fields: [captureRequestId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "BackupCanonicalSet_captureRequestId_fkey")
+  captureVerificationAttempts BackupCaptureVerificationAttempt[]
+  restoreVerificationAttempts BackupRestoreVerificationAttempt[]
+  finalization                BackupCaptureFinalization?
+
+  @@unique([id, captureJobId, captureRequestId, captureAttemptId, leaseId, generation, backupClass, manifestSha256], map: "BackupCanonicalSet_evidenceBinding_key")
+  @@unique([captureJobId, captureRequestId, captureAttemptId, leaseId, generation, backupClass], map: "BackupCanonicalSet_captureBinding_key")
+  @@index([captureRequestId])
+}
+
+// These rows are immutable evidence, not a mutable current verification
+// status. A duplicate idempotency key can be retried but cannot overwrite the
+// original submission; a new failed/incomplete attempt uses a new key.
+model BackupCaptureVerificationAttempt {
+  id                    String                           @id @default(cuid())
+  canonicalSetId        String
+  captureJobId          String
+  captureRequestId      String
+  captureAttemptId      String
+  leaseId               String
+  generation            Int
+  backupClass           BackupCaptureClass
+  manifestSha256        String
+  verifierPrincipalId   String
+  verifierCertificateId String
+  certificatePurpose    BackupVerifierCertificatePurpose @default(artifact_verifier)
+  verificationMethod    String
+  result                BackupVerificationResult
+  resultPayload         Json
+  evidenceSha256        String
+  idempotencyKey        String
+  verifiedAt            DateTime                         @default(now())
+
+  finalization          BackupCaptureFinalization?
+
+  canonicalSet        BackupCanonicalSet        @relation(fields: [canonicalSetId, captureJobId, captureRequestId, captureAttemptId, leaseId, generation, backupClass, manifestSha256], references: [id, captureJobId, captureRequestId, captureAttemptId, leaseId, generation, backupClass, manifestSha256], onDelete: Restrict, onUpdate: Restrict, map: "BackupCaptureVerificationAttempt_canonicalBinding_fkey")
+  verifierPrincipal   BackupVerifierPrincipal   @relation(fields: [verifierPrincipalId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "BackupCaptureVerificationAttempt_principalId_fkey")
+  verifierCertificate BackupVerifierCertificate @relation("CaptureVerificationCertificate", fields: [verifierCertificateId, verifierPrincipalId, certificatePurpose], references: [id, principalId, purpose], onDelete: Restrict, onUpdate: Restrict, map: "BackupCaptureVerificationAttempt_certificate_purpose_fkey")
+
+  @@unique([canonicalSetId, verifierCertificateId, idempotencyKey], map: "BackupCaptureVerificationAttempt_idempotency_key")
+  @@index([canonicalSetId, verifiedAt])
+}
+
+// An immutable terminal record.  The composite values repeat the evidence
+// binding deliberately: a finalizer can never turn a later/other capture's
+// proof into completion for this job.
+model BackupCaptureFinalization {
+  id                    String                           @id @default(cuid())
+  captureJobId          String                           @unique
+  canonicalSetId        String                           @unique
+  verificationAttemptId String                           @unique
+  idempotencyKey        String                           @unique
+  manifestSha256        String
+  verifierPrincipalId   String
+  verifierCertificateId String
+  finalizedAt           DateTime                         @default(now()) @db.Timestamptz(6)
+
+  captureJob            BackupCaptureJob                @relation(fields: [captureJobId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  canonicalSet           BackupCanonicalSet              @relation(fields: [canonicalSetId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  verificationAttempt    BackupCaptureVerificationAttempt @relation(fields: [verificationAttemptId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  verifierPrincipal      BackupVerifierPrincipal         @relation(fields: [verifierPrincipalId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "BackupCaptureFinalization_principalId_fkey")
+  verifierCertificate    BackupVerifierCertificate       @relation(fields: [verifierCertificateId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "BackupCaptureFinalization_certificateId_fkey")
+}
+
+// Delivery is at-least-once.  A claim token fences a stale worker from
+// acknowledging, retrying, or delivering a newer claimant's event.
+model BackupWorkflowOutbox {
+  id               String                    @id @default(cuid())
+  eventType        String
+  aggregateId      String
+  payload          Json
+  deduplicationKey String
+  status           BackupWorkflowOutboxStatus @default(pending)
+  availableAt      DateTime                  @default(now()) @db.Timestamptz(6)
+  lockedAt         DateTime?                 @db.Timestamptz(6)
+  lockedBy         String?
+  claimToken       String?
+  lockExpiresAt    DateTime?                 @db.Timestamptz(6)
+  attemptCount     Int                       @default(0)
+  lastError        String?
+  deliveredAt      DateTime?                 @db.Timestamptz(6)
+  createdAt        DateTime                  @default(now()) @db.Timestamptz(6)
+
+  @@unique([eventType, deduplicationKey])
+  @@index([status, availableAt])
+  @@index([lockExpiresAt])
+}
+
+model BackupRestoreVerificationAttempt {
+  id                    String                           @id @default(cuid())
+  canonicalSetId        String
+  captureJobId          String
+  captureRequestId      String
+  captureAttemptId      String
+  leaseId               String
+  generation            Int
+  backupClass           BackupCaptureClass
+  manifestSha256        String
+  verifierPrincipalId   String
+  verifierCertificateId String
+  certificatePurpose    BackupVerifierCertificatePurpose @default(restore_verifier)
+  verificationMethod    String
+  result                BackupVerificationResult
+  resultPayload         Json
+  evidenceSha256        String
+  idempotencyKey        String
+  verifiedAt            DateTime                         @default(now())
+
+  canonicalSet        BackupCanonicalSet        @relation(fields: [canonicalSetId, captureJobId, captureRequestId, captureAttemptId, leaseId, generation, backupClass, manifestSha256], references: [id, captureJobId, captureRequestId, captureAttemptId, leaseId, generation, backupClass, manifestSha256], onDelete: Restrict, onUpdate: Restrict, map: "BackupRestoreVerificationAttempt_canonicalBinding_fkey")
+  verifierPrincipal   BackupVerifierPrincipal   @relation(fields: [verifierPrincipalId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "BackupRestoreVerificationAttempt_principalId_fkey")
+  verifierCertificate BackupVerifierCertificate @relation("RestoreVerificationCertificate", fields: [verifierCertificateId, verifierPrincipalId, certificatePurpose], references: [id, principalId, purpose], onDelete: Restrict, onUpdate: Restrict, map: "BackupRestoreVerificationAttempt_certificate_purpose_fkey")
+
+  @@unique([canonicalSetId, verifierCertificateId, idempotencyKey], map: "BackupRestoreVerificationAttempt_idempotency_key")
+  @@index([canonicalSetId, verifiedAt])
+}
+
+// Machine/system actions are intentionally separate from AdminActionLog.
+// AdminActionLog remains the sole record for human admin authorization.
+model BackupCoordinatorActionLog {
+  id          String                @id @default(cuid())
+  principalId String
+  action      String
+  requestId   String?
+  jobId       String?
+  leaseId     String?
+  generation  Int?
+  metadata    Json?
+  createdAt   DateTime              @default(now())
+  request     BackupCaptureRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  job         BackupCaptureJob?     @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  @@index([principalId, createdAt])
+  @@index([requestId])
+  @@index([jobId])
+  @@index([leaseId, createdAt])
+}
+
+model StorageMaintenanceOperation {
+  id                    String                   @id @default(cuid())
+  generation            Int
+  kind                  StorageMutationKind
+  status                StorageMutationStatus    @default(active)
+  startedAt             DateTime                 @default(now())
+  completedAt           DateTime?
+  failureKind           String?
+  failureContext        Json?
+  reconciledAt          DateTime?
+  reconciledBy          String?
+  reconciliationReason  String?
+  reconciliationOutcome String?
+  workerId              String
+  workerFenceEpoch      Int
+  worker                StorageMaintenanceWorker @relation(fields: [workerId], references: [id], onDelete: Restrict)
+
+  @@index([status, generation])
+  @@index([workerId, status])
+}
+
+model StorageMaintenanceEvent {
+  id          String   @id @default(cuid())
+  generation  Int
+  action      String
+  operatorId  String?
+  operationId String?
+  reason      String?
+  outcome     String?
+  createdAt   DateTime @default(now())
+
+  @@index([generation, createdAt])
+  @@index([operationId])
 }
 
 enum ConnectionStatus {
@@ -339,23 +820,23 @@ enum WorkAssignmentStatus {
 }
 
 model WorkAssignment {
-  id             String               @id @default(cuid())
-  conversationId String
-  conversation   Conversation         @relation(fields: [conversationId], references: [id])
-  createdById    String
-  title          String
-  description    String
-  budgetAmount   Decimal
-  currency       String               @default("INR")
-  dueDate        DateTime?
-  status         WorkAssignmentStatus @default(proposed)
+  id                  String               @id @default(cuid())
+  conversationId      String
+  conversation        Conversation         @relation(fields: [conversationId], references: [id])
+  createdById         String
+  title               String
+  description         String
+  budgetAmount        Decimal
+  currency            String               @default("INR")
+  dueDate             DateTime?
+  status              WorkAssignmentStatus @default(proposed)
   // Set to the id of whichever participant first proposes cancelling; cleared
   // (assignment becomes "cancelled") once the other participant also calls
   // cancel. Not in the original data-model.md sketch — needed to actually
   // implement the documented mutual-confirm cancellation flow.
   cancelRequestedById String?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
 
   events              WorkAssignmentEvent[]
   deliverables        Deliverable[]
@@ -402,18 +883,18 @@ enum PaymentVerificationStatus {
 }
 
 model PaymentVerification {
-  id                  String                     @id @default(cuid())
-  workAssignmentId    String                     @unique
-  workAssignment      WorkAssignment             @relation(fields: [workAssignmentId], references: [id])
-  clientUtr           String?
-  clientClaimedAt     DateTime?
-  freelancerUtr       String?
-  freelancerClaimedAt DateTime?
-  mismatchCount       Int                        @default(0)
+  id                    String                    @id @default(cuid())
+  workAssignmentId      String                    @unique
+  workAssignment        WorkAssignment            @relation(fields: [workAssignmentId], references: [id])
+  clientUtr             String?
+  clientClaimedAt       DateTime?
+  freelancerUtr         String?
+  freelancerClaimedAt   DateTime?
+  mismatchCount         Int                       @default(0)
   mismatchCountAtReopen Int                       @default(0)
-  status              PaymentVerificationStatus  @default(awaiting_client)
-  verifiedAt          DateTime?
-  claims              PaymentClaim[]
+  status                PaymentVerificationStatus @default(awaiting_client)
+  verifiedAt            DateTime?
+  claims                PaymentClaim[]
 }
 
 // Append-only evidence of claims submitted after this feature's introduction.
@@ -479,13 +960,13 @@ model NotificationReadState {
 }
 
 model UserBlock {
-  id            String @id @default(cuid())
+  id            String    @id @default(cuid())
   blockerId     String
-  blocker       User @relation("SafetyBlocker", fields: [blockerId], references: [id], onDelete: Restrict)
+  blocker       User      @relation("SafetyBlocker", fields: [blockerId], references: [id], onDelete: Restrict)
   blockedUserId String
-  blockedUser   User @relation("SafetyBlocked", fields: [blockedUserId], references: [id], onDelete: Restrict)
-  activeKey     String? @unique
-  createdAt     DateTime @default(now())
+  blockedUser   User      @relation("SafetyBlocked", fields: [blockedUserId], references: [id], onDelete: Restrict)
+  activeKey     String?   @unique
+  createdAt     DateTime  @default(now())
   unblockedAt   DateTime?
 
   @@index([blockerId, blockedUserId, unblockedAt])
@@ -505,22 +986,22 @@ enum SafetyCaseStatus {
 }
 
 model SafetyCase {
-  id             String @id @default(cuid())
+  id             String            @id @default(cuid())
   kind           SafetyCaseKind
-  status         SafetyCaseStatus @default(open)
+  status         SafetyCaseStatus  @default(open)
   reporterId     String
-  reporter       User @relation("SafetyReporter", fields: [reporterId], references: [id], onDelete: Restrict)
+  reporter       User              @relation("SafetyReporter", fields: [reporterId], references: [id], onDelete: Restrict)
   targetUserId   String?
-  targetUser     User? @relation("SafetyTarget", fields: [targetUserId], references: [id], onDelete: Restrict)
+  targetUser     User?             @relation("SafetyTarget", fields: [targetUserId], references: [id], onDelete: Restrict)
   conversationId String?
-  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: Restrict)
+  conversation   Conversation?     @relation(fields: [conversationId], references: [id], onDelete: Restrict)
   assignmentId   String?
-  assignment     WorkAssignment? @relation(fields: [assignmentId], references: [id], onDelete: Restrict)
+  assignment     WorkAssignment?   @relation(fields: [assignmentId], references: [id], onDelete: Restrict)
   category       String
   reason         String
-  activeKey      String? @unique
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  activeKey      String?           @unique
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
   reviewedById   String?
   reviewedAt     DateTime?
   decision       String?
@@ -533,21 +1014,21 @@ model SafetyCase {
 }
 
 model SafetyCaseEvent {
-  id        String @id @default(cuid())
+  id        String     @id @default(cuid())
   caseId    String
   case      SafetyCase @relation(fields: [caseId], references: [id], onDelete: Restrict)
   actorId   String
-  actor     User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  actor     User       @relation(fields: [actorId], references: [id], onDelete: Restrict)
   action    String
   note      String?
-  createdAt DateTime @default(now())
+  createdAt DateTime   @default(now())
 
   @@index([caseId, createdAt])
 }
 
 // Ephemeral adapter transport payloads, not the persisted message/audit history.
 model SocketIoAttachment {
-  id        BigInt @id @default(autoincrement())
+  id        BigInt   @id @default(autoincrement())
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   payload   Bytes
 

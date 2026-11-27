@@ -1,6 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
+import { randomUUID } from "node:crypto";
 
 import { PrismaService } from "../prisma/prisma.service";
+import { StorageMutationCoordinator, type StorageMutationLease } from "../storage-maintenance/storage-mutation-coordinator.service";
 import type { CreatePortfolioItemDto } from "./dto/create-portfolio-item.dto";
 import type { UpdateFreelancerProfileDto } from "./dto/update-freelancer-profile.dto";
 import { ProfilePhotoStorageService } from "./profile-photo-storage.service";
@@ -73,6 +75,7 @@ export class FreelancerProfileService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly profilePhotos: ProfilePhotoStorageService,
+    private readonly maintenance?: StorageMutationCoordinator,
   ) {}
 
   async getOwnProfile(userId: string) {
@@ -183,17 +186,40 @@ export class FreelancerProfileService {
   }
 
   async uploadProfilePhoto(userId: string, file: Express.Multer.File | undefined) {
-    const profile = await this.prisma.db.freelancerProfile.findUnique({ where: { userId }, select: { id: true } });
-    if (!profile) {
-      throw new NotFoundException("Complete your freelancer profile before adding a profile photo");
-    }
-
-    const { url } = await this.profilePhotos.uploadPublicPhoto(`profiles/freelancers/${userId}/avatar`, file);
-    return this.prisma.db.freelancerProfile.update({
-      where: { userId },
-      data: { profilePhotoUrl: url },
-      select: { id: true, profilePhotoUrl: true },
+    if (!this.maintenance) throw new ServiceUnavailableException("Profile photo storage maintenance is unavailable");
+    return this.maintenance.run("profile_photo", async lease => {
+      const profile = await this.prisma.db.freelancerProfile.findUnique({ where: { userId }, select: { id: true, profilePhotoUrl: true, profilePhotoStorageId: true } });
+      if (!profile) throw new NotFoundException("Complete your freelancer profile before adding a profile photo");
+      const stored = await this.profilePhotos.storePublicPhoto(lease, `profiles/freelancers/${userId}/avatar-${randomUUID()}`, file);
+      try {
+        const updated = await this.prisma.db.freelancerProfile.update({
+          where: { userId },
+          data: { profilePhotoUrl: stored.url, profilePhotoStorageId: stored.storageId },
+          select: { id: true, profilePhotoUrl: true },
+        });
+        if (profile.profilePhotoStorageId) {
+          await this.replacePreviousPhoto(lease, userId, profile, stored.storageId);
+        }
+        return updated;
+      } catch (error) {
+        await this.profilePhotos.removeStoredPublicPhoto(lease, stored.storageId).catch(() => undefined);
+        throw error;
+      }
     });
+  }
+
+  private async replacePreviousPhoto(lease: StorageMutationLease, userId: string, previous: { profilePhotoUrl: string | null; profilePhotoStorageId: string | null }, newStorageId: string) {
+    try {
+      await this.profilePhotos.removeStoredPublicPhoto(lease, previous.profilePhotoStorageId!);
+    } catch (cleanupError) {
+      try {
+        await this.prisma.db.freelancerProfile.update({ where: { userId }, data: { profilePhotoUrl: previous.profilePhotoUrl, profilePhotoStorageId: previous.profilePhotoStorageId } });
+      } catch {
+        throw cleanupError;
+      }
+      await this.profilePhotos.removeStoredPublicPhoto(lease, newStorageId).catch(() => undefined);
+      throw cleanupError;
+    }
   }
 
   async addPortfolioItem(userId: string, dto: CreatePortfolioItemDto) {

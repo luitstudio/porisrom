@@ -1,6 +1,6 @@
 # Release gate checklist
 
-2026-10-28. This checklist is not deployment authorization. No push, deployment or production mutation occurred. Status/evidence is in the [readiness report](PORISROM-STAGING-READINESS-REPORT.md).
+2026-11-27. This checklist is not deployment authorization. No VPS or production mutation occurred. Phase 2D evidence includes a fresh PostgreSQL 18 chained workflow: canonical publication, filesystem verification, mTLS proof-v2 admission, atomic finalization, matching lease release, and fenced outbox acknowledgement.
 
 ## Local candidate gates
 
@@ -9,10 +9,11 @@
 - [x] Real PostgreSQL duplicate/race/audit rollback tests and separate-process realtime tests pass.
 - [x] Full local test/lint/type/build runner passes; historical private-storage/session/moderation/payment tests retained.
 - [x] Frozen pnpm 9.0.0 install succeeds in a separate candidate snapshot without secrets/build output.
-- [x] Fourteen migrations applied to isolated PostgreSQL; status and schema diff pass.
+- [x] Thirty-seven migrations applied to isolated PostgreSQL; status and schema drift validation pass.
 - [x] Local backup restored into a new isolated database with table fingerprints and constraint/schema verification.
 - [x] Compose configuration parses without printing expanded secrets.
-- [ ] Docker images built, scanned and started with non-root runtime/health/start ordering verified. **Blocked: no daemon.**
+- [x] Affected admission, verifier, and finalizer images started from validated local images; the live chained workflow passed in a fresh labelled PostgreSQL 18 fixture.
+- [x] Production runbook requires a recorded pre-deployment recovery point, admission-before-verifier startup, finalizer startup, and post-start service health verification.
 - [ ] Remote CI result recorded for the release candidate. Workflow prepared; **not pushed/run remotely**.
 
 ## Staging acceptance (authorized operator)

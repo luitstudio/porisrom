@@ -1,0 +1,28 @@
+# Deliberately separate from production Compose.  Never add production volumes or ports here.
+name: ${PORISROM_RESTORE_PROJECT:?Set a porisrom_restore_* project name}
+services:
+  postgres:
+    image: postgres:18.2-bookworm
+    environment:
+      POSTGRES_USER: ${RESTORE_POSTGRES_USER:?Set a disposable restore user}
+      POSTGRES_PASSWORD: ${RESTORE_POSTGRES_PASSWORD:?Set a disposable restore password}
+      POSTGRES_DB: ${RESTORE_POSTGRES_DB:?Set a porisrom_restore_* database name}
+    volumes:
+      - restore_postgres_18:/var/lib/postgresql
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: 'no'
+  assets:
+    image: busybox:1.37.0
+    command: ['sh', '-ceu', 'mkdir -p /restore/public /restore/private; exec sleep infinity']
+    volumes:
+      - restore_public_assets:/restore/public
+      - restore_private_documents:/restore/private
+    restart: 'no'
+volumes:
+  restore_postgres_18:
+  restore_public_assets:
+  restore_private_documents:

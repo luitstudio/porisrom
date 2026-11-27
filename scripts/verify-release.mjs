@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
-import { readFile, mkdir, writeFile, realpath } from "node:fs/promises";
+import { readFile, mkdir, rm, writeFile, realpath } from "node:fs/promises";
 import { resolve, join, dirname } from "node:path";
 const root = resolve(import.meta.dirname, "..");
 const env = { ...process.env, NODE_ENV: "test" };
@@ -27,9 +27,21 @@ function cli(workspace, pkg, file) {
   const require = createRequire(join(root, workspace, "package.json"));
   return join(dirname(require.resolve(`${pkg}/package.json`)), file);
 }
-const db = "packages/database", backend = "apps/backend", admin = "apps/admin", frontend = "apps/frontend";
+const db = "packages/database", sharedTypes = "packages/shared-types", backend = "apps/backend", admin = "apps/admin", frontend = "apps/frontend";
+const { Client } = createRequire(join(root, db, "package.json"))("pg");
+const bootstrapSql = await readFile(join(root, "deploy/migration-role-shell-bootstrap.sql"), "utf8");
+const bootstrapClient = new Client({ connectionString: env.DATABASE_URL });
+await bootstrapClient.connect();
+try {
+  await bootstrapClient.query(bootstrapSql);
+} finally {
+  await bootstrapClient.end();
+}
+// Do not allow a prior local build to satisfy a package export in verification.
+await rm(join(root, sharedTypes, "dist"), { recursive: true, force: true });
 const prisma = cli(db, "prisma", "build/index.js");
 const steps = [
+  [sharedTypes, cli(sharedTypes, "typescript", "bin/tsc"), ["-p", "tsconfig.json"]],
   [db, prisma, ["generate"]],
   [db, cli(db, "typescript", "bin/tsc"), []],
   [db, prisma, ["migrate", "deploy"]],

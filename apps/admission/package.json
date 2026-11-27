@@ -1,0 +1,8 @@
+{
+  "name": "@porisrom/backup-admission",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": { "build": "tsc", "type-check": "tsc --noEmit", "start": "node dist/main.js" },
+  "dependencies": { "@porisrom/database": "workspace:*", "@porisrom/shared-types": "workspace:*" },
+  "devDependencies": { "@types/node": "^20", "typescript": "^5" }
+}

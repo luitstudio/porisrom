@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { IdentityDocumentService } from "../src/kyc/identity-document.service";
 import type { PrismaService } from "../src/prisma/prisma.service";
+import { allowStorageMutation } from "./storage-maintenance-test-double";
 
 const cloudinaryMocks = vi.hoisted(() => ({
   uploadStream: vi.fn(),
@@ -49,7 +50,7 @@ function service(
       return configured && key.startsWith("CLOUDINARY_") ? `value-for-${key}` : undefined;
     }),
   };
-  return new IdentityDocumentService({ db } as unknown as PrismaService, config as never);
+  return new IdentityDocumentService({ db } as unknown as PrismaService, config as never, allowStorageMutation as never);
 }
 
 describe("identity document upload security", () => {

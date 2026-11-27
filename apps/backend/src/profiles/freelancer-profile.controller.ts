@@ -11,6 +11,7 @@ import { CreatePortfolioItemDto } from "./dto/create-portfolio-item.dto";
 import { UpdateFreelancerProfileDto } from "./dto/update-freelancer-profile.dto";
 import { FreelancerProfileService } from "./freelancer-profile.service";
 import { IdentityDocumentService } from "../kyc/identity-document.service";
+import { StorageMutation } from "../storage-maintenance/storage-mutation.decorator";
 
 @Controller("freelancers")
 export class FreelancerProfileController {
@@ -58,6 +59,7 @@ export class FreelancerProfileController {
   }
 
   @Post("me/identity-document")
+  @StorageMutation()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles("freelancer")
   @UseInterceptors(FileInterceptor("document", { limits: { fileSize: 1024 * 1024 + 1 } }))
@@ -66,6 +68,7 @@ export class FreelancerProfileController {
   }
 
   @Post("me/profile-photo")
+  @StorageMutation()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles("freelancer")
   @UseInterceptors(FileInterceptor("photo", { limits: { fileSize: 2 * 1024 * 1024 + 1 } }))
