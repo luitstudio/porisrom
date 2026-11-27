@@ -45,7 +45,10 @@ async function admit(fingerprint: string, input: unknown) {
   throw lastError;
 }
 
-const server = createServer({ key: readFileSync(required("ADMISSION_TLS_KEY_FILE")), cert: readFileSync(required("ADMISSION_TLS_CERT_FILE")), ca: readFileSync(required("ADMISSION_TLS_CLIENT_CA_FILE")), requestCert: true, rejectUnauthorized: true, minVersion: "TLSv1.3" }, async (request, response) => {
+// Readiness is the sole unauthenticated route. Keep requesting client
+// certificates, but allow its local TLS probe to finish the handshake; POST
+// admission still requires an authorized mTLS peer in workloadFingerprint.
+const server = createServer({ key: readFileSync(required("ADMISSION_TLS_KEY_FILE")), cert: readFileSync(required("ADMISSION_TLS_CERT_FILE")), ca: readFileSync(required("ADMISSION_TLS_CLIENT_CA_FILE")), requestCert: true, rejectUnauthorized: false, minVersion: "TLSv1.3" }, async (request, response) => {
   if (request.method === "GET" && request.url === "/health/ready") { response.writeHead(200); response.end("ok"); return; }
   if (request.method !== "POST" || request.url !== "/v1/capture-verifications") return fail(response, 404, "Not found");
   try { const result = await admit(workloadFingerprint(request), await json(request)); response.writeHead(201, { "content-type": "application/json" }); response.end(JSON.stringify(result)); }
