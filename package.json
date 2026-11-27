@@ -9,7 +9,8 @@
     "lint": "turbo run lint",
     "type-check": "turbo run type-check",
     "test:backup-tooling": "node scripts/test-production-backup-tooling.mjs",
-    "test:production-deployment-config": "node scripts/test-production-deployment-config.mjs"
+    "test:production-deployment-config": "node scripts/test-production-deployment-config.mjs",
+    "test:verifier-runtime-module": "node scripts/test-verifier-runtime-module-resolution.mjs"
   },
   "devDependencies": {
     "turbo": "^2.5.0"

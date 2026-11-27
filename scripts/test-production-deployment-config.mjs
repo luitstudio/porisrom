@@ -46,6 +46,6 @@ for (const secret of ["admission_tls_key", "admission_tls_cert", "admission_clie
 assert.match(admission, /requestCert: true, rejectUnauthorized: false/);
 assert.match(admission, /workloadFingerprint\(request\)/);
 assert.match(dockerfile, /path:'\/health\/ready',rejectUnauthorized:false,minVersion:'TLSv1\.3'/);
-assert.match(verifier, /VERIFIER_ENGINE_MODULE \?\? "\.\/verifier\/src\/backup-artifact-verifier\.engine\.js"/);
+assert.match(verifier, /VERIFIER_ENGINE_MODULE \?\? "\.\/backup-artifact-verifier\.engine\.js"/);
 assert.match(dockerfile, /backup-artifact-verifier\.engine\.js \.\/dist\/verifier\/src\/backup-artifact-verifier\.engine\.js/);
 console.log("production deployment credential and role configuration passed");
