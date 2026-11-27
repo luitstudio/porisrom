@@ -15,6 +15,7 @@ readonly TEMP_OVERHEAD_KIB="${PORISROM_BACKUP_TEMP_OVERHEAD_KIB:-65536}"
 readonly AGE_RECIPIENT="${PORISROM_BACKUP_AGE_RECIPIENT:?Set the public age recipient}"
 readonly REQUEST_FILE=/run/porisrom/backup-capture.request
 readonly RESULTS_DIR="$BACKUP_ROOT/results"
+readonly PRODUCTION_ENV_FILE="${PORISROM_PRODUCTION_ENV_FILE:?Set PORISROM_PRODUCTION_ENV_FILE to the root-only production Compose environment file}"
 readonly COORDINATOR_URL="${PORISROM_BACKUP_COORDINATOR_URL:?Set the restricted coordinator HTTPS URL}"
 readonly COORDINATOR_CERT="${PORISROM_BACKUP_COORDINATOR_CERT:?Set the mTLS client certificate path}"
 readonly COORDINATOR_KEY="${PORISROM_BACKUP_COORDINATOR_KEY:?Set the mTLS client key path}"
@@ -48,15 +49,15 @@ done < "$REQUEST_FILE"
 case "$BACKUP_ROOT" in /opt/porisrom/backups|/opt/porisrom/backups/*) ;; *) die 'backup root must stay below /opt/porisrom/backups';; esac
 for n in "$MIN_FREE_KIB" "$SAFETY_RESERVE_KIB" "$ENCRYPTION_OVERHEAD_PCT" "$TEMP_OVERHEAD_KIB"; do [[ $n =~ ^[0-9]+$ ]] || die 'capacity settings must be non-negative integers'; done
 (( MIN_FREE_KIB > 0 && SAFETY_RESERVE_KIB > 0 )) || die 'minimum free space and reserve must be positive'
-[[ -f $COMPOSE_FILE && -d $PROJECT_DIR ]] || die 'production Compose file or project directory is missing'
+[[ -f $COMPOSE_FILE && -d $PROJECT_DIR && -f $PRODUCTION_ENV_FILE && ! -L $PRODUCTION_ENV_FILE ]] || die 'production Compose file, project directory, or production environment file is missing or unsafe'
 for command in age docker df flock sha256sum sort tar awk du find grep curl node stat; do command -v "$command" >/dev/null || die "required command is unavailable: $command"; done
 mkdir -p "$SETS_DIR" "$STAGING_DIR" "$RESULTS_DIR"; chmod 0700 "$BACKUP_ROOT" "$SETS_DIR" "$STAGING_DIR" "$RESULTS_DIR"
 exec 9>"$BACKUP_ROOT/.backup.lock"; flock -n 9 || die 'another backup or retention run is active'
-compose=(docker compose --project-directory "$PROJECT_DIR" --file "$COMPOSE_FILE")
+compose=(docker compose --env-file "$PRODUCTION_ENV_FILE" --project-directory "$PROJECT_DIR" --file "$COMPOSE_FILE")
 request_json(){ node -e 'console.log(JSON.stringify({leaseId:process.argv[1],generation:Number(process.argv[2]),backupClass:process.argv[3],attemptId:process.argv[4]}))' "$lease_id" "$generation" "$backup_class" "$attempt_id"; }
 coordinator_call(){ local path=$1 body=$2; curl --fail-with-body --silent --show-error --proto '=https' --tlsv1.2 --cacert "$COORDINATOR_CA" --cert "$COORDINATOR_CERT" --key "$COORDINATOR_KEY" -H 'content-type: application/json' -X POST --data "$body" "$COORDINATOR_URL/internal/backup-coordinator/jobs/$job_id/$path"; }
 result_file="$RESULTS_DIR/${job_id}.${attempt_id}.json"
-write_result(){ local outcome=$1 state=$2 set_id=${3:-}; node -e 'const fs=require("fs"),path=require("path"); const [file,outcome,state,job,lease,generation,klass,attempt,principal,setId]=process.argv.slice(1); const tmp=file+"."+process.pid; const body=JSON.stringify({outcome,state,jobId:job,leaseId:lease,generation:Number(generation),backupClass:klass,attemptId:attempt,principalId:principal,resultIdempotencyKey:attempt,setId:setId||undefined,recordedAt:new Date().toISOString()})+"\n"; const fd=fs.openSync(tmp,"wx",0o600); try{fs.writeFileSync(fd,body);fs.fsyncSync(fd)}finally{fs.closeSync(fd)}; fs.renameSync(tmp,file); const dir=fs.openSync(path.dirname(file),"r");try{fs.fsyncSync(dir)}finally{fs.closeSync(dir)};' "$result_file" "$outcome" "$state" "$job_id" "$lease_id" "$generation" "$backup_class" "$attempt_id" "$COORDINATOR_PRINCIPAL_ID" "$set_id"; }
+write_result(){ local outcome=$1 state=$2 local_set_id=${3:-} canonical_key=${4:-} manifest_sha=${5:-}; node -e 'const fs=require("fs"),path=require("path"); const [file,outcome,state,job,lease,generation,klass,attempt,principal,localSetId,canonicalStorageKey,manifestSha256]=process.argv.slice(1); const tmp=file+"."+process.pid; const body=JSON.stringify({outcome,state,jobId:job,leaseId:lease,generation:Number(generation),backupClass:klass,attemptId:attempt,principalId:principal,resultIdempotencyKey:attempt,localSetId:localSetId||undefined,canonicalStorageKey:canonicalStorageKey||undefined,manifestSha256:manifestSha256||undefined,recordedAt:new Date().toISOString()})+"\n"; const fd=fs.openSync(tmp,"wx",0o600); try{fs.writeFileSync(fd,body);fs.fsyncSync(fd)}finally{fs.closeSync(fd)}; fs.renameSync(tmp,file); const dir=fs.openSync(path.dirname(file),"r");try{fs.fsyncSync(dir)}finally{fs.closeSync(dir)};' "$result_file" "$outcome" "$state" "$job_id" "$lease_id" "$generation" "$backup_class" "$attempt_id" "$COORDINATOR_PRINCIPAL_ID" "$local_set_id" "$canonical_key" "$manifest_sha"; }
 claimed=0; published=0
 on_error(){ rc=$?; if ((claimed)) && [[ ! -e $result_file ]]; then write_result uncertain "interrupted_or_failed" "${set_name:-}" || true; fi; exit "$rc"; }
 trap on_error ERR
@@ -128,8 +129,10 @@ prune_class(){
 }
  prune_class daily 7; prune_class weekly 4; prune_class monthly 3
 fi
-success_payload=$(node -e 'console.log(JSON.stringify({leaseId:process.argv[1],generation:Number(process.argv[2]),backupClass:process.argv[3],attemptId:process.argv[4],outcome:"succeeded",resultIdempotencyKey:process.argv[5],reason:"integrity-verified local backup publication",resultSetId:process.argv[6]}))' "$lease_id" "$generation" "$backup_class" "$attempt_id" "$attempt_id" "$set_name")
-write_result succeeded integrity_verified "$set_name"
+manifest_sha256=$(sha256sum "$final_dir/manifest.sha256" | awk '{print $1}')
+canonical_storage_key="backup-canonical/${job_id}/${attempt_id}"
+success_payload=$(node -e 'console.log(JSON.stringify({leaseId:process.argv[1],generation:Number(process.argv[2]),backupClass:process.argv[3],attemptId:process.argv[4],outcome:"succeeded",resultIdempotencyKey:process.argv[5],reason:"integrity-verified local backup publication",resultSetId:process.argv[6],resultManifestSha256:process.argv[7]}))' "$lease_id" "$generation" "$backup_class" "$attempt_id" "$attempt_id" "$canonical_storage_key" "$manifest_sha256")
+write_result succeeded integrity_verified "$set_name" "$canonical_storage_key" "$manifest_sha256"
 if ! coordinator_call report "$success_payload" >/dev/null; then
  die 'backup set was published but coordinator outcome reporting is uncertain; lease remains held'
 fi

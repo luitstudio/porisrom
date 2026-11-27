@@ -85,7 +85,9 @@ This procedure never starts Prisma migrations automatically and never prints a r
    node --env-file=/etc/porisrom/production.env /opt/porisrom/app/deploy/production-preflight.mjs
    ```
 
-9. Start the restricted verifier and finalizer workers after admission is healthy. The verifier claims canonical-publication work and the finalizer consumes only admitted-evidence work:
+9. Before the first backup, create the root-owned candidate handoff directory and enable the host coordinator timers only after backend, admission, verifier, and finalizer are healthy. Set `PORISROM_BACKUP_CANDIDATE_ROOT=/opt/porisrom/backups/candidates` in `/etc/porisrom/production.env`, then run `install -d -o root -g 1000 -m 0750 /opt/porisrom/backups/candidates`. The verifier receives this host path read-only; no application or migration container receives it. The host capture passes `/etc/porisrom/production.env` explicitly to every Compose operation. The coordinator reports the encrypted capture, registers its manifest-bound canonical set, atomically publishes the candidate, then waits for independent verification and restricted finalization rather than calling `finalize` itself.
+
+10. Start the restricted verifier and finalizer workers after admission is healthy. The verifier claims canonical-publication work and the finalizer consumes only admitted-evidence work:
 
    ```text
    docker compose --env-file /etc/porisrom/production.env --project-directory /opt/porisrom/app --file /opt/porisrom/app/deploy/compose.production.yml --profile verifier --profile finalizer up -d verifier finalizer

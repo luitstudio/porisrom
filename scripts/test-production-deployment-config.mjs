@@ -53,4 +53,7 @@ assert.match(admission, /workloadFingerprint\(request\)/);
 assert.match(dockerfile, /path:'\/health\/ready',rejectUnauthorized:false,minVersion:'TLSv1\.3'/);
 assert.match(verifier, /VERIFIER_ENGINE_MODULE \?\? "\.\/backup-artifact-verifier\.engine\.js"/);
 assert.match(dockerfile, /backup-artifact-verifier\.engine\.js \.\/dist\/verifier\/src\/backup-artifact-verifier\.engine\.js/);
+assert.match(compose, /PORISROM_BACKUP_CANDIDATE_ROOT:\?Supply the root-owned verifier candidate inbox path/);
+assert.match(compose, /target: \/artifacts\/private\/backup-candidates[\s\S]*?read_only: true/);
+assert.match(compose, /BACKUP_SCHEDULER_ENABLED: \$\{BACKUP_SCHEDULER_ENABLED:-false\}/);
 console.log("production deployment credential and role configuration passed");

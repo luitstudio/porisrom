@@ -38,6 +38,8 @@ assert.match(backup, /request contains an unexpected field/, "request format is 
 assert.match(readme, /backupSafe=false`? is expected/i, "lease-specific preflight is documented");
 assert.match(backup, /write_result succeeded integrity_verified[\s\S]*coordinator_call report/, "a successful result envelope is durable before report submission");
 assert.match(backup, /! -e \$\{result_file:-\}/, "a durable result envelope is preserved after report failure");
+assert.match(backup, /--env-file "\$PRODUCTION_ENV_FILE"/, "host capture uses the controlled production Compose environment file");
+assert.match(backup, /canonicalStorageKey/, "successful capture binds a canonical storage key");
 function validateComposeModel(config, project, database) {
   if (!project.startsWith("porisrom_restore_") || project.includes("production") || !database.startsWith("porisrom_restore_") || database.includes("production")) throw Error("production target rejected");
   if (config.postgres !== "postgres:18.2-bookworm" || config.ports || config.hostMount || config.externalVolume || config.externalNetwork) throw Error("unsafe restore compose");

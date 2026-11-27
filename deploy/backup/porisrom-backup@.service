@@ -8,6 +8,7 @@ Type=oneshot
 User=root
 Group=root
 EnvironmentFile=/etc/porisrom/backup.env
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
 ExecStart=/opt/porisrom/app/deploy/backup/porisrom-backup-coordinator.sh --class %i
 UMask=0077
 TimeoutStartSec=2h

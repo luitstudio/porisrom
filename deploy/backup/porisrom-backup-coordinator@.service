@@ -8,6 +8,7 @@ Type=oneshot
 User=root
 Group=root
 EnvironmentFile=/etc/porisrom/backup.env
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
 ExecStart=/opt/porisrom/app/deploy/backup/porisrom-backup-coordinator.sh --class %i
 UMask=0077
 TimeoutStartSec=15min
@@ -15,7 +16,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectHome=true
 ProtectSystem=full
-ReadWritePaths=/run/porisrom /var/lib/porisrom/backup-coordinator
+ReadWritePaths=/opt/porisrom/backups /run/porisrom /var/lib/porisrom/backup-coordinator
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true

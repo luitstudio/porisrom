@@ -20,7 +20,7 @@ const fixtureText = String.raw`#!/usr/bin/env bash
 set -Eeuo pipefail
 mkdir -p /work/fakebin /work/project /run/porisrom /opt/porisrom/backups
 chmod 0700 /run/porisrom
-touch /work/compose.yml
+touch /work/compose.yml /work/production.env
 cat > /work/fakebin/docker <<'EOF'
 #!/usr/bin/env bash
 set -Eeuo pipefail
@@ -80,6 +80,7 @@ EOF
 [[ $CASE_NAME == unsafe_mode ]] || chmod 0600 /run/porisrom/backup-capture.request 2>/dev/null || true
 export PATH=/work/fakebin:$PATH
 export PORISROM_BACKUP_ROOT=/opt/porisrom/backups PORISROM_PROJECT_DIR=/work/project PORISROM_PRODUCTION_COMPOSE_FILE=/work/compose.yml
+export PORISROM_PRODUCTION_ENV_FILE=/work/production.env
 export PORISROM_BACKUP_MIN_FREE_KIB=1 PORISROM_BACKUP_SAFETY_RESERVE_KIB=1 PORISROM_BACKUP_AGE_RECIPIENT=age1fake
 export PORISROM_BACKUP_COORDINATOR_URL=https://coordinator.test PORISROM_BACKUP_COORDINATOR_CERT=/work/cert PORISROM_BACKUP_COORDINATOR_KEY=/work/key PORISROM_BACKUP_COORDINATOR_CA=/work/ca PORISROM_BACKUP_COORDINATOR_PRINCIPAL_ID=backup-vps
 touch /work/cert /work/key /work/ca; chmod 0600 /work/cert /work/key /work/ca

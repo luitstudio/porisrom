@@ -34,6 +34,21 @@ reconciliation. A report failure preserves the already-written envelope for
 report-only retry.
 It never marks `RESTORE_VERIFIED`, and never releases a capture lease.
 
+## Canonical publication and independent finalization
+
+After an integrity-verified capture reports its manifest digest, the host
+coordinator registers the exact `backup-canonical/...` storage key and creates
+an atomic candidate directory named by the server-issued canonical set ID. It
+copies only ciphertext, manifest, marker, and newly bound metadata to
+`/opt/porisrom/backups/candidates`, root:`1000`, mode `0750` (files `0640`).
+Production Compose mounts this path read-only into the verifier. The host
+coordinator does **not** call `finalize` for successful captures: it retains
+the durable job record until the independently authenticated verifier submits
+signed V2 evidence and the restricted finalizer releases the exact lease.
+This also makes a restart after result archival safe: subsequent timer runs
+query the authoritative job state and remove the local job only when it is
+`finalized`.
+
 Each source stream goes directly through `age`; the job never stages a plaintext dump or asset archive on disk. A set progresses through four distinct states: **created** (staging only), **integrity verified** (ciphertext hashes checked and atomically published), **restore verified** (a disposable restore completed and wrote `RESTORE_VERIFIED`), and **last known-good recovery point** (the newest valid restore-verified set). SHA-256 integrity never means that a database or asset restore succeeded.
 
 Retention runs only after a new integrity-verified publication. Before deleting any candidate it rechecks every candidate manifest; a corrupt, incomplete, or uncertain set aborts pruning. It keeps 7 daily, 4 weekly, and 3 monthly sets, never deletes the last known-good restore-verified set, and performs no pruning at all until one restore-verified set exists. Interrupted staging directories are never published or eligible for recovery/retention.
@@ -45,10 +60,10 @@ This is availability protection, not offsite or tamper-resistant storage. The VP
 Do these only under an approved production change. None were performed by this repository change.
 
 1. Install Ubuntu packages providing `age`, GNU core utilities (`sha256sum`, `tar`, `df`, `flock`), Docker Compose v2, and systemd. Confirm `age --version`, `docker compose version`, and that the Docker service is available.
-2. Keep `/opt/porisrom/app` as the checked-out deployment root used by production. Copy the scripts and unit templates from `deploy/backup/`; do not modify `compose.production.yml`.
+2. Keep `/opt/porisrom/app` as the checked-out deployment root used by production. Copy the scripts and unit templates from `deploy/backup/`, update `compose.production.yml`, and set `PORISROM_BACKUP_CANDIDATE_ROOT=/opt/porisrom/backups/candidates` in the root-only Compose environment file.
 3. Create `/opt/porisrom/backups` on persistent storage, root-owned and mode `0700`. Measure database size and both asset volumes before choosing `PORISROM_BACKUP_MIN_FREE_KIB`, `PORISROM_BACKUP_SAFETY_RESERVE_KIB`, encryption overhead, and temporary overhead. The job conservatively estimates the three source streams, encrypted output, staging metadata, and reserve before staging; it rechecks before each artifact and publication. It never deletes recovery points to make room.
 4. Create an `age` key pair on a controlled recovery workstation, **not on the VPS**. Put only the public recipient in `/etc/porisrom/backup.env`; keep the private identity in separately controlled recovery custody. The VPS must never retain the private identity.
-5. Create `/etc/porisrom/backup.env` from `backup.env.example`, owned by root with mode `0600`. It contains no database password. Do not put `DATABASE_URL`, `POSTGRES_PASSWORD`, an age identity, or a Cloudinary secret in it.
+5. Create `/etc/porisrom/backup.env` from `backup.env.example`, owned by root with mode `0600`. Set `PORISROM_PRODUCTION_ENV_FILE=/etc/porisrom/production.env`; the capture command passes this path explicitly to Compose. It contains no database password. Do not put `DATABASE_URL`, `POSTGRES_PASSWORD`, an age identity, or a Cloudinary secret in it.
    Install the restricted coordinator mTLS client certificate, key, and CA at
    the configured root-only paths. The reverse-proxy boundary documented in
    `docs/BACKUP-COORDINATOR-MTLS-BOUNDARY.md` must be deployed before capture;
