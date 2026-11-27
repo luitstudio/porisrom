@@ -15,6 +15,8 @@ x-api-environment: &api-environment
   SOCKET_ADAPTER: ${SOCKET_ADAPTER:-postgres}
   SOCKET_CHANNEL_PREFIX: ${SOCKET_CHANNEL_PREFIX:?Supply a production-specific realtime channel prefix}
   REALTIME_EXPECTED_INSTANCES: ${REALTIME_EXPECTED_INSTANCES:-1}
+  BACKUP_COORDINATOR_TRUSTED_PROXY_IPS: ${BACKUP_COORDINATOR_TRUSTED_PROXY_IPS:?Supply the private mTLS proxy IP allowlist}
+  BACKUP_COORDINATOR_MTLS_PROXY_TOKEN: ${BACKUP_COORDINATOR_MTLS_PROXY_TOKEN:?Supply the private mTLS proxy assertion token}
   KYC_LOCAL_FALLBACK_ENABLED: "false"
   PROFILE_PHOTO_UPLOAD_DIR: /app/runtime/public
   PRIVATE_DOCUMENT_UPLOAD_DIR: /app/runtime/private
