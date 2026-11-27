@@ -49,7 +49,8 @@ export function executePreflight(selectedMode = mode, commandRunner = runCommand
 
   validate(process.env);
   commandRunner("docker", [...compose, "--profile", "validation", "run", "--rm", "--no-deps", "production-config-check"]);
-  // Migrations are deliberately absent. They require separate database-owner approval.
+  // Migrations are deliberately absent. They require separate database-owner approval
+  // and MIGRATION_DATABASE_URL; application startup receives DATABASE_URL only.
   commandRunner("docker", [...compose, "up", "-d", "postgres", "backend", "frontend", "admin"]);
   return "start";
 }

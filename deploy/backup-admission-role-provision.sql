@@ -3,12 +3,19 @@
 -- The script is deliberately not part of application startup.
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'porisrom_db_owner') THEN CREATE ROLE porisrom_db_owner NOLOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION; END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'porisrom_backend_runtime') THEN CREATE ROLE porisrom_backend_runtime LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION; END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'porisrom_admission_runtime') THEN CREATE ROLE porisrom_admission_runtime LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'porisrom_backend_runtime') THEN CREATE ROLE porisrom_backend_runtime NOLOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'porisrom_admission_runtime') THEN CREATE ROLE porisrom_admission_runtime NOLOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION; END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'porisrom_verifier_runtime') THEN CREATE ROLE porisrom_verifier_runtime NOLOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION; END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'porisrom_finalizer_runtime') THEN CREATE ROLE porisrom_finalizer_runtime LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION; END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'porisrom_dispatcher_runtime') THEN CREATE ROLE porisrom_dispatcher_runtime LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'porisrom_finalizer_runtime') THEN CREATE ROLE porisrom_finalizer_runtime NOLOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'porisrom_dispatcher_runtime') THEN CREATE ROLE porisrom_dispatcher_runtime NOLOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION; END IF;
 END $$;
+-- Role shells may already exist from the pre-migration bootstrap.  Enable
+-- LOGIN only for processes with reviewed runtime grants; passwords are set
+-- interactively by the database owner and never stored in this repository.
+ALTER ROLE porisrom_backend_runtime LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
+ALTER ROLE porisrom_admission_runtime LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
+ALTER ROLE porisrom_dispatcher_runtime LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
+ALTER ROLE porisrom_finalizer_runtime LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
 REVOKE ALL ON SCHEMA public FROM PUBLIC, porisrom_backend_runtime, porisrom_admission_runtime, porisrom_verifier_runtime, porisrom_finalizer_runtime, porisrom_dispatcher_runtime;
 GRANT USAGE ON SCHEMA public TO porisrom_backend_runtime, porisrom_admission_runtime, porisrom_finalizer_runtime, porisrom_dispatcher_runtime;
 -- Backend Prisma usage inventory: ordinary marketplace/auth/admin models plus

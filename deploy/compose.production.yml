@@ -3,7 +3,7 @@ name: porisrom-production
 
 x-api-environment: &api-environment
   NODE_ENV: production
-  DATABASE_URL: ${DATABASE_URL:?Supply the private production PostgreSQL URL for the Compose postgres service}
+  DATABASE_URL: ${DATABASE_URL:?Supply the restricted backend-runtime PostgreSQL URL}
   JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?Supply the production JWT access secret}
   JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Supply a distinct production JWT refresh secret}
   FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:?Supply the exact HTTPS marketplace and admin origins}
@@ -43,7 +43,8 @@ services:
     build: { context: .., target: migrate }
     entrypoint: [node, /app/deploy/validate-production-database-url.mjs]
     environment:
-      DATABASE_URL: ${DATABASE_URL:?Supply the private production PostgreSQL URL for the Compose postgres service}
+      DATABASE_URL: ${DATABASE_URL:?Supply the restricted backend-runtime PostgreSQL URL}
+      MIGRATION_DATABASE_URL: ${MIGRATION_DATABASE_URL:?Supply the controlled migration-executor PostgreSQL URL}
       POSTGRES_USER: ${POSTGRES_USER:?Supply the production database user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Supply the production database password}
       POSTGRES_DB: ${POSTGRES_DB:?Supply the production database name}
@@ -68,7 +69,7 @@ services:
     profiles: [migration]
     build: { context: .., target: migrate }
     environment:
-      DATABASE_URL: ${DATABASE_URL:?Supply the private production PostgreSQL URL for the Compose postgres service}
+      DATABASE_URL: ${MIGRATION_DATABASE_URL:?Supply the controlled migration-executor PostgreSQL URL}
     command: [migrate, deploy]
     depends_on:
       postgres:

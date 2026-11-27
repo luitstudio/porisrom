@@ -12,4 +12,10 @@ DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'porisrom_verifier_runtime') THEN
     CREATE ROLE porisrom_verifier_runtime NOLOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
   END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'porisrom_finalizer_runtime') THEN
+    CREATE ROLE porisrom_finalizer_runtime NOLOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'porisrom_dispatcher_runtime') THEN
+    CREATE ROLE porisrom_dispatcher_runtime NOLOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
+  END IF;
 END $$;
