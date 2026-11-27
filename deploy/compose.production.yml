@@ -40,7 +40,7 @@ services:
   # Opt-in, offline configuration check. It never connects to PostgreSQL.
   production-config-check:
     profiles: [validation]
-    build: { context: .., target: migrate }
+    build: { context: ., target: migrate }
     entrypoint: [node, /app/deploy/validate-production-database-url.mjs]
     environment:
       DATABASE_URL: ${DATABASE_URL:?Supply the restricted backend-runtime PostgreSQL URL}
@@ -67,7 +67,7 @@ services:
   # Opt-in only. Starting applications NEVER applies migrations automatically.
   migrate:
     profiles: [migration]
-    build: { context: .., target: migrate }
+    build: { context: ., target: migrate }
     environment:
       DATABASE_URL: ${MIGRATION_DATABASE_URL:?Supply the controlled migration-executor PostgreSQL URL}
     command: [migrate, deploy]
@@ -83,7 +83,7 @@ services:
     pids_limit: 256
 
   backend:
-    build: { context: .., target: backend }
+    build: { context: ., target: backend }
     environment: *api-environment
     ports: ["127.0.0.1:4000:4000"]
     volumes:
@@ -104,13 +104,28 @@ services:
   # Not exposed publicly. Production supplies independent mTLS material and a
   # restricted admission DB URL; it never receives verifier signing keys.
   admission:
-    build: { context: .., target: admission }
+    build: { context: ., target: admission }
     environment:
       ADMISSION_DATABASE_URL: ${ADMISSION_DATABASE_URL:?Supply the restricted admission-runtime PostgreSQL URL}
       ADMISSION_TLS_KEY_FILE: /run/secrets/admission_tls_key
       ADMISSION_TLS_CERT_FILE: /run/secrets/admission_tls_cert
       ADMISSION_TLS_CLIENT_CA_FILE: /run/secrets/admission_client_ca
-    secrets: [admission_tls_key, admission_tls_cert, admission_client_ca]
+    secrets:
+      - source: admission_tls_key
+        target: admission_tls_key
+        uid: "1000"
+        gid: "1000"
+        mode: 0400
+      - source: admission_tls_cert
+        target: admission_tls_cert
+        uid: "1000"
+        gid: "1000"
+        mode: 0400
+      - source: admission_client_ca
+        target: admission_client_ca
+        uid: "1000"
+        gid: "1000"
+        mode: 0400
     depends_on:
       postgres:
         condition: service_healthy
@@ -128,11 +143,12 @@ services:
   # dispatcher role; it has no admission or backend runtime credential.
   verifier:
     profiles: [verifier]
-    build: { context: .., target: verifier }
+    build: { context: ., target: verifier }
     environment:
       VERIFIER_DISPATCH_DATABASE_URL: ${VERIFIER_DISPATCH_DATABASE_URL:?Supply the restricted dispatcher PostgreSQL URL}
       VERIFIER_WORKER_ID: ${VERIFIER_WORKER_ID:?Supply a stable verifier worker identity}
       ADMISSION_ENDPOINT: ${ADMISSION_ENDPOINT:?Supply the internal admission HTTPS endpoint}
+      ADMISSION_TLS_SERVER_NAME: ${ADMISSION_TLS_SERVER_NAME:?Supply the admission certificate DNS name}
       VERIFIER_TLS_KEY_FILE: /run/secrets/verifier_tls_key
       VERIFIER_TLS_CERT_FILE: /run/secrets/verifier_tls_cert
       VERIFIER_TLS_CA_FILE: /run/secrets/verifier_tls_ca
@@ -145,7 +161,27 @@ services:
     volumes:
       - production_public_assets:/artifacts/public:ro
       - production_private_documents:/artifacts/private:ro
-    secrets: [verifier_tls_key, verifier_tls_cert, verifier_tls_ca, verifier_signing_key]
+    secrets:
+      - source: verifier_tls_key
+        target: verifier_tls_key
+        uid: "1000"
+        gid: "1000"
+        mode: 0400
+      - source: verifier_tls_cert
+        target: verifier_tls_cert
+        uid: "1000"
+        gid: "1000"
+        mode: 0400
+      - source: verifier_tls_ca
+        target: verifier_tls_ca
+        uid: "1000"
+        gid: "1000"
+        mode: 0400
+      - source: verifier_signing_key
+        target: verifier_signing_key
+        uid: "1000"
+        gid: "1000"
+        mode: 0400
     read_only: true
     tmpfs: [/tmp]
     restart: "no"
@@ -158,7 +194,7 @@ services:
 
   finalizer:
     profiles: [finalizer]
-    build: { context: .., target: finalizer }
+    build: { context: ., target: finalizer }
     environment:
       FINALIZER_DATABASE_URL: ${FINALIZER_DATABASE_URL:?Supply the restricted finalizer PostgreSQL URL}
       FINALIZER_WORKER_ID: ${FINALIZER_WORKER_ID:?Supply a stable finalizer worker identity}
@@ -177,7 +213,7 @@ services:
 
   frontend:
     build:
-      context: ..
+      context: .
       target: frontend
       args:
         BACKEND_URL: ${BACKEND_URL:?Supply the HTTPS API origin for frontend builds}
@@ -202,7 +238,7 @@ services:
 
   admin:
     build:
-      context: ..
+      context: .
       target: admin
       args:
         BACKEND_URL: ${BACKEND_URL:?Supply the HTTPS API origin for admin builds}

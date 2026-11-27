@@ -35,7 +35,7 @@ FROM runtime-base AS admission
 COPY --from=admission-build --chown=node:node /out/admission/ ./
 USER node
 EXPOSE 7443
-HEALTHCHECK --interval=30s --timeout=5s CMD node -e "require('https').get({hostname:'127.0.0.1',port:7443,path:'/health/ready',rejectUnauthorized:false},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
+HEALTHCHECK --interval=30s --timeout=5s CMD node -e "require('https').get({hostname:'127.0.0.1',port:7443,path:'/health/ready',rejectUnauthorized:false,minVersion:'TLSv1.3'},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
 CMD ["node", "dist/main.js"]
 
 FROM dependencies AS verifier-build

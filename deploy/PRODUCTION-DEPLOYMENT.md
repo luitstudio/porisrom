@@ -44,6 +44,15 @@ This procedure never starts Prisma migrations automatically and never prints a r
    \q
    ```
 
+   Before starting admission or verifier, register the independently authenticated verifier workload and its Ed25519 signing public key through the controlled database-owner session. The two fingerprints are deliberately different: the workload fingerprint is SHA-256 of the verifier's mTLS client certificate DER; the signing fingerprint is SHA-256 of the canonical DER SubjectPublicKeyInfo for the Ed25519 public key. Do not use text PEM hashes, certificate display fingerprints, or the admission server certificate.
+
+   ```text
+   openssl x509 -in /secure/verifier-client.crt -outform DER | openssl dgst -sha256 -r | awk '{print $1}'
+   openssl pkey -pubin -in /secure/verifier-signing-public.pem -pubout -outform DER | openssl dgst -sha256 -r | awk '{print $1}'
+   ```
+
+   In a reviewed owner session, insert one active `BackupVerifierPrincipal`, one active `BackupVerifierCertificate` with `purpose='artifact_verifier'`, its exact PEM in `signingPublicKeyPem`, and one active `BackupVerifierWorkloadIdentity` linking the mTLS fingerprint to that same principal and purpose. Set `VERIFIER_PRINCIPAL_ID` and `VERIFIER_CERTIFICATE_FINGERPRINT` from those inserted records. Set `ADMISSION_ENDPOINT` to the internal HTTPS service endpoint and `ADMISSION_TLS_SERVER_NAME` to a DNS SAN on the admission certificate. Keep the client certificate, private signing key, and database credentials in the secret manager; mount them only to the non-root verifier/admission containers. Admission readiness is HTTPS-only and does not require a client certificate, but every proof-admission POST requires a CA-authorized mTLS client certificate.
+
 6. On a fresh production database, explicitly seed only the required taxonomy after migrations. This command sets `SEED_LAUNCH_DATA=false`, so it cannot create demo freelancer or company data:
 
    ```text

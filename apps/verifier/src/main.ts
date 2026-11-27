@@ -5,7 +5,7 @@ import { ArtifactVerifierAdmissionWorker } from "./artifact-verifier-admission.w
 const required = (name: string) => { const value = process.env[name]; if (!value) throw new Error(`${name} is required`); return value; };
 const db = createPrismaClient(required("VERIFIER_DISPATCH_DATABASE_URL"));
 const workerId = required("VERIFIER_WORKER_ID");
-const engineModule = process.env.VERIFIER_ENGINE_MODULE ?? "../../backend/src/storage-maintenance/backup-artifact-verifier.engine";
+const engineModule = process.env.VERIFIER_ENGINE_MODULE ?? "./verifier/src/backup-artifact-verifier.engine.js";
 // The engine is copied into the runtime image from the already compiled backend
 // artifact; verifier source never receives a backend database credential.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
